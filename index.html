@@ -2710,6 +2710,27 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
   });
 
   /* ---------- 3D 仪器（lab tab） ---------- */
+  function fitLabFrame(sec){
+    var frame = sec ? sec.querySelector(".lab-iframe.on") : document.querySelector(".lab-iframe.on");
+    if (!frame) return;
+    var r = frame.getBoundingClientRect();
+    if (!r || r.top <= 0) return;
+    var isMobile = window.matchMedia("(max-width: 640px)").matches;
+    var minH = isMobile ? 320 : 400;
+    var maxH = isMobile ? 620 : 980;
+    var h = window.innerHeight - r.top - 18;
+    if (h < minH) h = minH;
+    if (h > maxH) h = maxH;
+    frame.style.height = Math.round(h) + "px";
+  }
+  var fitTimer = null;
+  window.addEventListener("resize", function(){
+    if (fitTimer) return;
+    fitTimer = setTimeout(function(){
+      fitTimer = null;
+      try { if (state.tab === "lab") fitLabFrame(currentSection()); } catch(err){}
+    }, 120);
+  });
   function lazyLabs(sec){
     var body = sec.querySelector('.tab-body[data-tab="lab"]');
     if (!body) return;
@@ -2718,6 +2739,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
       var f = frames[i];
       if (!f.getAttribute("src") && f.getAttribute("data-src")) f.setAttribute("src", f.getAttribute("data-src"));
     }
+    fitLabFrame(sec);
   }
   host.addEventListener("click", function(e){
     var b = e.target.closest ? e.target.closest(".lab-btn") : null;
