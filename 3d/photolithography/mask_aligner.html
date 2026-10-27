@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>掩模对准机 Mask Aligner · 3D 教学拆解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101418'/%3E%3Ccircle cx='20' cy='32' r='10' fill='none' stroke='%23a78bfa' stroke-width='4'/%3E%3Ccircle cx='44' cy='32' r='14' fill='none' stroke='%236ea8fe' stroke-width='4'/%3E%3Cpath d='M30 32h4' stroke='%23e2e8f0' stroke-width='3'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#101418; --bg2:#161c22; --bg3:#1d252d;
+    --line:#2b353f; --ink:#e2e8f0; --ink-dim:#94a3b8; --ink-faint:#64748b;
+    --violet:#a78bfa; --blue:#6ea8fe; --amber:#f5c26b; --ok:#4ade80;
+    --panel-w:340px; --ctl-h:64px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  button{font-family:inherit;}
+  /* ===== 顶栏 ===== */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:10px 18px; background:var(--bg2); border-bottom:1px solid var(--line);
+    flex:0 0 auto; z-index:20;
+  }
+  .kicker{font-size:12px; letter-spacing:.14em; color:var(--ink-faint); text-transform:uppercase;}
+  h1{font-size:18px; font-weight:600; margin-top:2px; line-height:1.25;}
+  h1 b{color:var(--violet); font-weight:700;}
+  .status{
+    font-size:13px; color:var(--ink-dim); background:var(--bg3);
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px; white-space:nowrap;
+  }
+  .status span{color:var(--ink);}
+  /* ===== 主体 ===== */
+  main{flex:1 1 auto; display:flex; min-height:0; position:relative;}
+  #view{flex:1 1 auto; position:relative; min-width:0; background:
+    radial-gradient(120% 90% at 50% 0%, #1a212b 0%, #101418 55%, #0c0f13 100%);}
+  #scene{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+  .hint{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    font-size:12px; color:var(--ink-faint); background:rgba(16,20,24,.72);
+    border:1px solid var(--line); padding:6px 14px; border-radius:999px; pointer-events:none; white-space:nowrap;
+  }
+  .fallback[hidden]{display:none;}
+  .fallback{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; text-align:center; padding:24px; color:var(--ink-dim); font-size:14px;
+  }
+  .fallback h3{color:var(--ink); font-size:16px;}
+  .fallback p{max-width:520px; line-height:1.7;}
+  .badge3d{
+    position:absolute; top:14px; left:14px; z-index:5; font-size:11px; letter-spacing:.08em;
+    color:var(--violet); border:1px solid color-mix(in srgb, var(--violet) 45%, transparent);
+    background:color-mix(in srgb, var(--violet) 12%, transparent);
+    padding:4px 10px; border-radius:6px;
+  }
+  /* ===== 侧栏 ===== */
+  #panel{
+    flex:0 0 var(--panel-w); background:var(--bg2); border-left:1px solid var(--line);
+    overflow-y:auto; padding:18px 18px 26px; min-height:0; z-index:10;
+  }
+  #panel .p-tag{
+    display:inline-block; font-size:11px; letter-spacing:.12em; color:var(--blue);
+    border:1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+    background:color-mix(in srgb, var(--blue) 10%, transparent);
+    padding:3px 9px; border-radius:5px; margin-bottom:10px;
+  }
+  #pName{font-size:17px; line-height:1.4; margin-bottom:4px;}
+  #pEn{font-size:13px; color:var(--violet); margin-bottom:12px;}
+  #pDesc{font-size:13.5px; line-height:1.75; color:var(--ink-dim);}
+  #pMode{margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-faint); line-height:1.7;}
+  #pMode b{color:var(--amber); font-weight:600;}
+  /* ===== 底部控制 ===== */
+  #controls{
+    flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
+    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
+    min-height:var(--ctl-h);
+  }
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
+  .seg{display:flex; gap:6px;}
+  .seg button{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer; transition:all .18s ease; white-space:nowrap;
+  }
+  .seg button:hover{color:var(--ink); border-color:#3d4a57;}
+  .seg button.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
+  .seg button.amber.on{background:var(--amber); border-color:var(--amber); color:#241a06;}
+  .seg button.blue.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  input[type=range]{
+    width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
+  }
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  .chip{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+  }
+  .chip:hover{color:var(--ink); border-color:#3d4a57;}
+  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
+  .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
+  .stepbadge b{color:var(--amber); font-weight:600;}
+  /* ===== 响应式 ===== */
+  @media (max-width:900px){
+    main{flex-direction:column;}
+    #panel{flex:0 0 auto; max-height:40%; border-left:none; border-top:1px solid var(--line); padding:12px 16px 16px;}
+    #controls{gap:16px; padding:10px 14px;}
+    .hint{bottom:10px; font-size:11px;}
+  }
+  @media (max-width:560px){
+    h1{font-size:15px;}
+    .kicker{font-size:10px;}
+    #controls{gap:14px;}
+    .seg button{padding:6px 9px; font-size:11.5px;}
+    .badge3d{top:10px; left:10px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="kicker">现代材料分析与原理 · 微纳加工工艺</div>
+    <h1>掩模对准机 <b>Mask Aligner</b> · 3D 教学拆解</h1>
+  </div>
+  <div class="status" id="statusMode">模式 <span>接触曝光 Contact</span></div>
+</header>
+
+<main>
+  <section id="view" aria-label="掩模对准机 3D 场景">
+    <div class="badge3d">WEBGL 3D · 教学示意模型</div>
+    <canvas id="scene"></canvas>
+    <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div class="fallback" id="fallback" hidden>
+      <h3>当前环境无法运行 3D 场景</h3>
+      <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <span class="p-tag" id="pTag">整体装置 OVERALL</span>
+    <h2 id="pName">掩模对准机 Mask Aligner</h2>
+    <div id="pEn">Contact / Proximity Aligner</div>
+    <p id="pDesc">把带有图形的掩模版与涂好光刻胶的晶圆进行相对定位，再用规定波段与剂量的紫外光曝光。它解决两个核心问题：图案从哪里来，以及它落在样品的什么位置。</p>
+    <div id="pMode">当前展示：<b>接触曝光</b>——掩模与晶圆上的光刻胶直接接触，间隙小、分辨率高。</div>
+  </aside>
+</main>
+
+<footer id="controls">
+  <div class="ctl">
+    <span>曝光方式 Exposure Mode</span>
+    <div class="seg" id="modeSeg">
+      <button data-mode="contact" class="on">接触 Contact</button>
+      <button data-mode="proximity">接近 Proximity</button>
+      <button data-mode="projection">投影 Projection</button>
+    </div>
+  </div>
+  <div class="ctl">
+    <span>结构拆解 Exploded View</span>
+    <input type="range" id="explode" min="0" max="100" value="0" aria-label="结构拆解程度">
+  </div>
+  <div class="ctl">
+    <span>工艺步骤 Process Steps</span>
+    <div class="seg" id="stepSeg">
+      <button data-step="0">上片</button>
+      <button data-step="1">上版</button>
+      <button data-step="2">粗对准</button>
+      <button data-step="3">精对准</button>
+      <button data-step="4">曝光</button>
+    </div>
+  </div>
+  <div class="ctl" style="min-width:220px; max-width:560px;">
+    <span>部件导航 Parts</span>
+    <div id="partChips"></div>
+  </div>
+</footer>
+
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ================= 数据 ================= */
+const PARTS = {
+  base: {zh:'机座 / 机架', en:'Frame & Base', tag:'整体装置 OVERALL',
+    desc:'设备主体框架，承载载片台、掩模系统与光源。掩模对准机常见型号有 MJB3、MA6、MJB4 等，通过上片、上版、粗对准、精对准、曝光等步骤完成图形转移。'},
+  stage: {zh:'载片台（真空吸盘）', en:'Wafer Chuck', tag:'定位与对准 ALIGNMENT',
+    desc:'真空吸附固定晶圆的平台。连接 X-Y-θ 精密平台，可完成粗对准所需的平移与旋转，并支持间隙调节。'},
+  wafer: {zh:'硅晶圆', en:'Silicon Wafer', tag:'基片 SUBSTRATE',
+    desc:'被加工对象，表面已旋涂光刻胶。常见基片包括裸硅、SiO₂/Si、SOI 与玻璃；晶圆表面状态（颗粒、油脂、水分）会直接影响涂胶与图形质量。'},
+  mask: {zh:'掩模版', en:'Photomask', tag:'图形源 PATTERN SOURCE',
+    desc:'以石英或玻璃为透明基板、表面形成铬图形。透光区与遮光区决定光刻胶接受的光剂量分布；掩模上的颗粒、划痕与缺陷会复制到每一次曝光中。'},
+  lamp: {zh:'紫外光源', en:'UV Light Source', tag:'光源与曝光 EXPOSURE',
+    desc:'提供曝光用紫外辐射（常见 365 nm 等谱线）。曝光剂量 ≈ 光强 × 时间；波长越短，理论上可分辨的特征尺寸越小。'},
+  scope: {zh:'对准显微镜', en:'Alignment Microscope', tag:'定位与对准 ALIGNMENT',
+    desc:'用于精对准：操作者在显微镜下同时观察掩模标记与晶圆标记并使之重合。层数越多，对准标记越重要。'},
+  panel: {zh:'控制面板', en:'Control Panel', tag:'整体装置 OVERALL',
+    desc:'设置曝光时间、光源与设备操作。曝光不足会使感光区未充分溶解，过量则使边缘扩张、细线变窄或相邻开口连通。'}
+};
+
+const MODES = {
+  contact:    {zh:'接触曝光', en:'Contact Exposure',  gap:0.10, desc:'掩模与晶圆上的胶膜尽量贴合，衍射间隙小、分辨率较好；但掩模容易被颗粒划伤或被胶污染。'},
+  proximity:  {zh:'接近曝光', en:'Proximity Exposure',gap:0.52, desc:'掩模与胶膜之间保留很小间隙，可降低机械损伤；但会因菲涅耳衍射使图形边缘变钝。'},
+  projection: {zh:'投影曝光', en:'Projection Exposure',gap:1.15, desc:'利用透镜或反射光学系统把掩模图形投到晶圆上，掩模不直接接触晶圆，适合高精度和量产，但设备复杂、成本高。'}
+};
+
+const STEPS = [
+  {name:'上片', part:'stage', text:'将涂好光刻胶的晶圆放到载片台上，真空吸附固定。'},
+  {name:'上版', part:'mask',  text:'把带有图形的掩模版安装到掩模框架上。'},
+  {name:'粗对准', part:'stage', text:'通过平台 X、Y 移动与旋转，使掩模与晶圆大致对正。'},
+  {name:'精对准', part:'scope', text:'在显微镜下观察掩模标记与晶圆标记，精确校正位置。'},
+  {name:'曝光', part:'lamp',  text:'设置曝光条件，打开快门，紫外光透过掩模照射光刻胶。'}
+];
+
+/* ================= 三要素 ================= */
+const canvas = document.getElementById('scene');
+const view = document.getElementById('view');
+let renderer, scene, camera, controls, clock;
+let groups = {};
+let beam, lensGrp, shutter, lampGlow;
+let mode = 'contact', explode = 0, step = -1, selected = null;
+let rafId = null;
+const EXPLODE_VEC = {
+  base:  [0,0,0],
+  stage: [0,-0.85,0],
+  wafer: [0,-1.55,0],
+  mask:  [0,1.3,0],
+  lamp:  [0,2.3,0],
+  scope: [1.6,0.6,0],
+  panel: [-1.9,0.4,0]
+};
+
+function initRenderer(){
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(view.clientWidth, view.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+}
+
+function initScene(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x141a21);
+  camera = new THREE.PerspectiveCamera(40, view.clientWidth/view.clientHeight, 0.1, 60);
+  camera.position.set(8.4, 6.2, 8.8);
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.target.set(0, 2.2, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 4;
+  controls.maxDistance = 22;
+  controls.maxPolarAngle = Math.PI * 0.52;
+  clock = new THREE.Clock();
+  // 灯光
+  const hemi = new THREE.HemisphereLight(0xe6edff, 0x232a33, 0.65);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(6, 10, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.near = 1; key.shadow.camera.far = 30;
+  const sc = 7;
+  key.shadow.camera.left = -sc; key.shadow.camera.right = sc;
+  key.shadow.camera.top = sc; key.shadow.camera.bottom = -sc;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x8fa4d8, 0.5);
+  fill.position.set(-6, 4, -5);
+  scene.add(fill);
+  // 地面
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(6.5, 48),
+    new THREE.MeshStandardMaterial({color:0x10151c, roughness:0.85, metalness:0.1})
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -0.01;
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+/* 材料库 */
+function mats(){
+  return {
+    frame: new THREE.MeshStandardMaterial({color:0x8b98a6, roughness:0.45, metalness:0.75}),
+    dark:  new THREE.MeshStandardMaterial({color:0x37414c, roughness:0.55, metalness:0.5}),
+    panel: new THREE.MeshStandardMaterial({color:0x222a33, roughness:0.5, metalness:0.4}),
+    wafer: new THREE.MeshStandardMaterial({color:0x9fb6d0, roughness:0.25, metalness:0.7}),
+    resist:new THREE.MeshStandardMaterial({color:0xb9848a, roughness:0.35, metalness:0.1}),
+    mask:  new THREE.MeshStandardMaterial({color:0xdbe6f0, roughness:0.15, metalness:0.4, transparent:true, opacity:0.55}),
+    chrome:new THREE.MeshStandardMaterial({color:0x14181d, roughness:0.2, metalness:0.85}),
+    glass: new THREE.MeshStandardMaterial({color:0xa9c4e8, roughness:0.1, metalness:0.1, transparent:true, opacity:0.35}),
+    glow:  new THREE.MeshStandardMaterial({color:0xc4b5fd, roughness:0.4, metalness:0.1, emissive:0x8b7cf0, emissiveIntensity:0.9}),
+    violet:new THREE.MeshBasicMaterial({color:0x8b7cf0, transparent:true, opacity:0.35, depthWrite:false})
+  };
+}
+
+function addPart(group, id, explodeVec){
+  groups[id] = group;
+  group.userData.partId = id;
+  group.userData.explode = explodeVec;
+  group.traverse(o=>{ if(o.isMesh) o.userData.partId = id; });
+  scene.add(group);
+}
+
+/* ================= 模型构建 ================= */
+function buildBase(M){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.34, 2.5), M.frame);
+  base.position.y = 0.17; base.castShadow = true; base.receiveShadow = true;
+  g.add(base);
+  [[-1.5,-0.9],[1.5,-0.9],[-1.5,0.9],[1.5,0.9]].forEach(p=>{
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,2.6,16), M.frame);
+    col.position.set(p[0], 1.6, p[1]);
+    col.castShadow = true; g.add(col);
+  });
+  const top1 = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.3, 0.24), M.dark);
+  top1.position.set(0, 3.05, -1.05); g.add(top1);
+  const top2 = top1.clone(); top2.position.z = 1.05; g.add(top2);
+  const rail1 = new THREE.Mesh(new THREE.BoxGeometry(0.24,0.3,2.3), M.dark);
+  rail1.position.set(-1.55,3.05,0); g.add(rail1);
+  const rail2 = rail1.clone(); rail2.position.x = 1.55; g.add(rail2);
+  return g;
+}
+
+function buildPanel(M){
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.12), M.panel);
+  box.position.set(-1.68, 1.1, 0.95); box.castShadow = true; g.add(box);
+  const scr = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.34, 0.02), M.glass);
+  scr.position.set(-1.68, 1.5, 1.02); g.add(scr);
+  for(let i=0;i<4;i++){
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.07,0.03), M.dark);
+    b.position.set(-1.9+(i%2)*0.42, 1.16-Math.floor(i/2)*0.2, 1.02);
+    g.add(b);
+  }
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.05,20), M.dark);
+  knob.position.set(-1.68, 0.62, 1.02); g.add(knob);
+  return g;
+}
+
+function buildStage(M){
+  const g = new THREE.Group();
+  const plat = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.26, 1.6), M.dark);
+  plat.position.y = 0.52; plat.castShadow = true; plat.receiveShadow = true;
+  g.add(plat);
+  const chuck = new THREE.Mesh(new THREE.CylinderGeometry(0.66,0.74,0.16,40), M.frame);
+  chuck.position.y = 0.75; chuck.castShadow = true; g.add(chuck);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5,0.02,10,40), M.dark);
+  ring.position.y = 0.85; ring.rotation.x = Math.PI/2; g.add(ring);
+  return g;
+}
+
+function buildWafer(M){
+  const g = new THREE.Group();
+  const w = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,48), M.wafer);
+  w.position.y = 0.9; w.castShadow = true; g.add(w);
+  const r = new THREE.Mesh(new THREE.CylinderGeometry(0.47,0.47,0.02,48), M.resist);
+  r.position.y = 0.935; g.add(r);
+  const flat = new THREE.Mesh(new THREE.BoxGeometry(0.24,0.06,0.12), M.wafer);
+  flat.position.set(-0.02,0.9,-0.48); g.add(flat);
+  return g;
+}
+
+function buildMask(M){
+  const g = new THREE.Group();
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 1.7), M.dark);
+  frame.position.y = 1.5; frame.castShadow = true; g.add(frame);
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(1.46, 0.03, 1.46), M.mask);
+  plate.position.y = 1.54; g.add(plate);
+  // 铬图形
+  const c = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.015, 0.045), M.chrome);
+  c.position.y = 1.557; g.add(c);
+  const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.015, 1.0), M.chrome);
+  c2.position.y = 1.557; g.add(c2);
+  [[-0.52,-0.52],[0.52,-0.52],[-0.52,0.52],[0.52,0.52]].forEach(p=>{
+    const m1 = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.015,0.03), M.chrome);
+    m1.position.set(p[0],1.557,p[1]); g.add(m1);
+    const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.015,0.14), M.chrome);
+    m2.position.set(p[0],1.557,p[1]); g.add(m2);
+  });
+  return g;
+}
+
+function buildLamp(M){
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 1.6), M.dark);
+  box.position.y = 3.05; box.castShadow = true; g.add(box);
+  lampGlow = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 24), M.glow);
+  lampGlow.position.y = 2.95; g.add(lampGlow);
+  // 快门
+  shutter = new THREE.Group();
+  const s1 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.3), M.frame);
+  s1.position.set(0, 2.6, 0.28); shutter.add(s1);
+  const s2 = s1.clone(); s2.position.set(0, 2.6, -0.28); shutter.add(s2);
+  g.add(shutter);
+  return g;
+}
+
+function buildScope(M){
+  const g = new THREE.Group();
+  const tube1 = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.7,20), M.frame);
+  tube1.position.set(0.85, 2.7, 0.72); tube1.rotation.z = 0.4; g.add(tube1);
+  const tube2 = tube1.clone(); tube2.position.set(-0.85,2.7,0.72); tube2.rotation.z = -0.4; g.add(tube2);
+  const eye1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.13,0.16,20), M.dark);
+  eye1.position.set(1.28, 3.32, 0.76); eye1.rotation.z = 0.4; g.add(eye1);
+  const eye2 = eye1.clone(); eye2.position.set(-1.28,3.32,0.76); eye2.rotation.z = -0.4; g.add(eye2);
+  const lens1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.14,0.4,20), M.dark);
+  lens1.position.set(0.52, 2.06, 0.68); lens1.rotation.z = 0.4; g.add(lens1);
+  const lens2 = lens1.clone(); lens2.position.set(-0.52,2.06,0.68); lens2.rotation.z = -0.4; g.add(lens2);
+  return g;
+}
+
+function buildBeam(M){
+  // 曝光光束
+  const b = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.66, 0.4, 1.9, 32, 1, true),
+    new THREE.MeshBasicMaterial({color:0x8b7cf0, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false})
+  );
+  b.position.y = 2.15;
+  scene.add(b);
+  beam = b;
+  // 投影透镜组
+  lensGrp = new THREE.Group();
+  const l1 = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,0.16,40), M.glass);
+  l1.position.y = 1.95; lensGrp.add(l1);
+  const l2 = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,0.16,40), M.glass);
+  l2.position.y = 1.72; lensGrp.add(l2);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7,0.04,12,48), M.dark);
+  ring.position.y = 1.835; ring.rotation.x = Math.PI/2; lensGrp.add(ring);
+  lensGrp.visible = false;
+  scene.add(lensGrp);
+}
+
+function buildAll(){
+  const M = mats();
+  addPart(buildBase(M), 'base', EXPLODE_VEC.base);
+  addPart(buildPanel(M), 'panel', EXPLODE_VEC.panel);
+  addPart(buildStage(M), 'stage', EXPLODE_VEC.stage);
+  addPart(buildWafer(M), 'wafer', EXPLODE_VEC.wafer);
+  addPart(buildMask(M), 'mask', EXPLODE_VEC.mask);
+  addPart(buildLamp(M), 'lamp', EXPLODE_VEC.lamp);
+  addPart(buildScope(M), 'scope', EXPLODE_VEC.scope);
+  buildBeam(M);
+  // 记录基准位置
+  Object.keys(groups).forEach(id=>{
+    groups[id].userData.baseY = groups[id].position.y;
+  });
+}
+
+/* ================= 交互 ================= */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let hovered = null;
+
+function pickMeshes(){
+  const arr = [];
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) arr.push(o); }));
+  return arr;
+}
+
+function setPointer(e){
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function onMove(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  const id = hits.length ? hits[0].object.userData.partId : null;
+  canvas.style.cursor = id ? 'pointer' : 'grab';
+  if(hovered && hovered !== selected){
+    hovered.material.emissiveIntensity = 0;
+    hovered = null;
+  }
+  if(id && id !== selected){
+    hovered = hits[0].object;
+    hovered.material.emissiveIntensity = 0.22;
+  }
+}
+
+function onClick(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  if(hits.length){
+    selectPart(hits[0].object.userData.partId);
+  }
+}
+
+function selectPart(id){
+  if(!id || !PARTS[id]) return;
+  selected = id;
+  // 高亮
+  Object.values(groups).forEach(g=>{
+    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
+  });
+  if(hovered){ hovered = null; }
+  // 面板
+  const p = PARTS[id];
+  document.getElementById('pTag').textContent = p.tag;
+  document.getElementById('pName').textContent = p.zh;
+  document.getElementById('pEn').textContent = p.en;
+  document.getElementById('pDesc').textContent = p.desc;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : '当前曝光方式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc;
+  // chips
+  document.querySelectorAll('#partChips .chip').forEach(c=>{
+    c.classList.toggle('on', c.dataset.part===id);
+  });
+}
+
+function initPartChips(){
+  const wrap = document.getElementById('partChips');
+  Object.keys(PARTS).forEach(id=>{
+    const b = document.createElement('button');
+    b.className = 'chip'; b.dataset.part = id;
+    b.textContent = PARTS[id].zh.split('（')[0];
+    b.addEventListener('click', ()=>selectPart(id));
+    wrap.appendChild(b);
+  });
+}
+
+/* 模式切换 */
+function setMode(m){
+  mode = m;
+  const cfg = MODES[m];
+  document.getElementById('statusMode').innerHTML = '模式 <span>'+cfg.zh+' '+cfg.en+'</span>';
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  lensGrp.visible = (m==='projection');
+  // 光束形态
+  if(m==='projection'){
+    beam.scale.set(0.9, 1.0, 0.9);
+    beam.position.y = 2.0;
+  } else {
+    beam.scale.set(1.0, 1.0, 1.0);
+    beam.position.y = 2.15;
+  }
+  updatePanelMode();
+}
+
+function updatePanelMode(){
+  const p = selected ? PARTS[selected] : null;
+  if(selected){
+    document.getElementById('pMode').innerHTML = step>=0
+      ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+      : '当前曝光方式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc;
+  }
+}
+
+/* 拆解动画 */
+function setExplode(v){
+  explode = v;
+  document.getElementById('explode').value = v*100;
+  Object.keys(groups).forEach(id=>{
+    const g = groups[id];
+    const vec = g.userData.explode;
+    g.position.y = g.userData.baseY + vec[1]*explode;
+    g.position.x = vec[0]*explode;
+    g.position.z = vec[2]*explode;
+  });
+  if(explode>0.02){
+    if(beam) beam.visible = false;
+    if(lensGrp) lensGrp.visible = false;
+  } else {
+    if(beam) beam.visible = true;
+    if(lensGrp) lensGrp.visible = (mode==='projection');
+  }
+}
+
+/* 工艺步骤 */
+function runStep(i){
+  step = i;
+  document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
+  if(i<0){ selectPart(null); return; }
+  const s = STEPS[i];
+  // 曝光步骤点亮光源
+  if(i===4){
+    lampGlow.material.emissiveIntensity = 2.2;
+    if(beam) beam.material.opacity = 0.5;
+    shutter.rotation.y = 0.6;
+  } else {
+    lampGlow.material.emissiveIntensity = 0.9;
+    if(beam) beam.material.opacity = 0.25;
+    shutter.rotation.y = 0;
+  }
+  selectPart(s.part);
+  // 相机轻微靠近
+  const t = controls.target;
+  if(i===3){
+    camera.position.set(4.2, 3.6, 4.4); t.set(0.3, 2.3, 0.5);
+  } else if(i===4){
+    camera.position.set(5.6, 4.4, 6.2); t.set(0, 2.0, 0);
+  } else {
+    camera.position.set(8.4, 6.2, 8.8); t.set(0, 2.2, 0);
+  }
+  controls.update();
+  updatePanelMode();
+}
+
+/* 动画循环 */
+function animate(){
+  rafId = requestAnimationFrame(animate);
+  controls.update();
+  if(beam && !explode){
+    const t = clock.getElapsedTime();
+    beam.material.opacity = step===4 ? 0.45 + Math.sin(t*3)*0.08 : 0.22;
+    lampGlow.material.emissiveIntensity = step===4 ? 2.2 + Math.sin(t*4)*0.4 : 0.9;
+  }
+  renderer.render(scene, camera);
+}
+
+function onResize(){
+  const w = view.clientWidth, h = view.clientHeight;
+  if(!w || !h) return;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+/* 启动 */
+function start(){
+  initRenderer();
+  initScene();
+  buildAll();
+  initPartChips();
+  setMode('contact');
+  setExplode(0);
+  window.addEventListener('resize', onResize);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerdown', onClick);
+  document.getElementById('modeSeg').addEventListener('click', e=>{
+    if(e.target.dataset.mode) setMode(e.target.dataset.mode);
+  });
+  document.getElementById('explode').addEventListener('input', e=>{
+    setExplode(parseFloat(e.target.value)/100);
+  });
+  document.getElementById('stepSeg').addEventListener('click', e=>{
+    if(e.target.dataset.step!==undefined){
+      runStep(parseInt(e.target.dataset.step,10));
+    }
+  });
+  // 默认选中掩模版，展示核心部件
+  selectPart('mask');
+  window.__webglStarted = true;
+  animate();
+}
+
+if(window.WebGLRenderingContext){
+  try{
+    const test = document.createElement('canvas');
+    const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
+    if(!gl) throw new Error('no webgl');
+  }catch(err){
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+  }
+}
+if(!document.getElementById('fallback').hidden){
+  // 无 WebGL：纯文字说明
+  document.getElementById('pDesc').textContent = '当前环境不支持 WebGL，无法渲染 3D 模型。请使用 Chrome、Edge 或 Firefox 等支持 WebGL 的浏览器打开本文件。';
+} else {
+  if(window.THREE && window.THREE.OrbitControls){
+    start();
+  } else {
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+    document.getElementById('pDesc').textContent = 'Three.js 加载失败（可能处于离线环境）。请联网后刷新本页，或换用支持 WebGL 的浏览器打开。';
+  }
+}
+</script>
+</body>
+</html>

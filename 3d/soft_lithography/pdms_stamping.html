@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDMS 软光刻 PDMS Soft Lithography · 3D 教学拆解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101418'/%3E%3Ccircle cx='20' cy='32' r='10' fill='none' stroke='%23a78bfa' stroke-width='4'/%3E%3Ccircle cx='44' cy='32' r='14' fill='none' stroke='%236ea8fe' stroke-width='4'/%3E%3Cpath d='M30 32h4' stroke='%23e2e8f0' stroke-width='3'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#101418; --bg2:#161c22; --bg3:#1d252d;
+    --line:#2b353f; --ink:#e2e8f0; --ink-dim:#94a3b8; --ink-faint:#64748b;
+    --violet:#a78bfa; --blue:#6ea8fe; --amber:#f5c26b; --ok:#4ade80;
+    --panel-w:340px; --ctl-h:64px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  button{font-family:inherit;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:10px 18px; background:var(--bg2); border-bottom:1px solid var(--line);
+    flex:0 0 auto; z-index:20;
+  }
+  .kicker{font-size:12px; letter-spacing:.14em; color:var(--ink-faint); text-transform:uppercase;}
+  h1{font-size:18px; font-weight:600; margin-top:2px; line-height:1.25;}
+  h1 b{color:var(--violet); font-weight:700;}
+  .status{
+    font-size:13px; color:var(--ink-dim); background:var(--bg3);
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px; white-space:nowrap;
+  }
+  .status span{color:var(--ink);}
+  main{flex:1 1 auto; display:flex; min-height:0; position:relative;}
+  #view{flex:1 1 auto; position:relative; min-width:0; background:
+    radial-gradient(120% 90% at 50% 0%, #1a212b 0%, #101418 55%, #0c0f13 100%);}
+  #scene{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+  .hint{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    font-size:12px; color:var(--ink-faint); background:rgba(16,20,24,.72);
+    border:1px solid var(--line); padding:6px 14px; border-radius:999px; pointer-events:none; white-space:nowrap;
+  }
+  .fallback[hidden]{display:none;}
+  .fallback{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; text-align:center; padding:24px; color:var(--ink-dim); font-size:14px;
+  }
+  .fallback h3{color:var(--ink); font-size:16px;}
+  .fallback p{max-width:520px; line-height:1.7;}
+  .badge3d{
+    position:absolute; top:14px; left:14px; z-index:5; font-size:11px; letter-spacing:.08em;
+    color:var(--violet); border:1px solid color-mix(in srgb, var(--violet) 45%, transparent);
+    background:color-mix(in srgb, var(--violet) 12%, transparent);
+    padding:4px 10px; border-radius:6px;
+  }
+  #panel{
+    flex:0 0 var(--panel-w); background:var(--bg2); border-left:1px solid var(--line);
+    overflow-y:auto; padding:18px 18px 26px; min-height:0; z-index:10;
+  }
+  #panel .p-tag{
+    display:inline-block; font-size:11px; letter-spacing:.12em; color:var(--blue);
+    border:1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+    background:color-mix(in srgb, var(--blue) 10%, transparent);
+    padding:3px 9px; border-radius:5px; margin-bottom:10px;
+  }
+  #pName{font-size:17px; line-height:1.4; margin-bottom:4px;}
+  #pEn{font-size:13px; color:var(--violet); margin-bottom:12px;}
+  #pDesc{font-size:13.5px; line-height:1.75; color:var(--ink-dim);}
+  #pMode{margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-faint); line-height:1.7;}
+  #pMode b{color:var(--amber); font-weight:600;}
+  #controls{
+    flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
+    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
+    min-height:var(--ctl-h);
+  }
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
+  .seg{display:flex; gap:6px;}
+  .seg button{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer; transition:all .18s ease; white-space:nowrap;
+  }
+  .seg button:hover{color:var(--ink); border-color:#3d4a57;}
+  .seg button.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
+  .seg button.amber.on{background:var(--amber); border-color:var(--amber); color:#241a06;}
+  .seg button.blue.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  input[type=range]{
+    width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
+  }
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  .chip{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+  }
+  .chip:hover{color:var(--ink); border-color:#3d4a57;}
+  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
+  .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
+  .stepbadge b{color:var(--amber); font-weight:600;}
+  @media (max-width:900px){
+    main{flex-direction:column;}
+    #panel{flex:0 0 auto; max-height:40%; border-left:none; border-top:1px solid var(--line); padding:12px 16px 16px;}
+    #controls{gap:16px; padding:10px 14px;}
+    .hint{bottom:10px; font-size:11px;}
+  }
+  @media (max-width:560px){
+    h1{font-size:15px;}
+    .kicker{font-size:10px;}
+    #controls{gap:14px;}
+    .seg button{padding:6px 9px; font-size:11.5px;}
+    .badge3d{top:10px; left:10px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="kicker" id="kicker">现代材料分析与原理 · 软光刻</div>
+    <h1 id="title">PDMS 软光刻 <b>Soft Lithography</b> · 3D 教学拆解</h1>
+  </div>
+  <div class="status" id="statusMode">步骤 <span>浇铸→固化→揭膜→蘸墨→转印</span></div>
+</header>
+
+<main>
+  <section id="view" aria-label="PDMS 软光刻 3D 场景">
+    <div class="badge3d">WEBGL 3D · 教学示意模型</div>
+    <canvas id="scene"></canvas>
+    <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div class="fallback" id="fallback" hidden>
+      <h3>当前环境无法运行 3D 场景</h3>
+      <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <span class="p-tag" id="pTag">整体装置 OVERALL</span>
+    <h2 id="pName">PDMS 软光刻</h2>
+    <div id="pEn">PDMS Soft Lithography (Microcontact Printing)</div>
+    <p id="pDesc">用母版浇铸 PDMS 得到弹性印章，蘸硫醇墨水后像盖印章一样把图案转印到金衬底上。</p>
+    <div id="pMode">当前展示：<b>浇铸→固化→揭膜→蘸墨→转印</b>五步。</div>
+  </aside>
+</main>
+
+<footer id="controls">
+  <div class="ctl" id="ctlMode">
+    <span>工作模式 Mode</span>
+    <div class="seg" id="modeSeg"></div>
+  </div>
+  <div class="ctl" id="ctlExplode">
+    <span>结构拆解 Exploded View</span>
+    <input type="range" id="explode" min="0" max="100" value="0" aria-label="结构拆解程度">
+  </div>
+  <div class="ctl" id="ctlStep">
+    <span>工艺步骤 Process Steps</span>
+    <div class="seg" id="stepSeg"></div>
+  </div>
+  <div class="ctl" style="min-width:220px; max-width:560px;">
+    <span>部件导航 Parts</span>
+    <div id="partChips"></div>
+  </div>
+</footer>
+
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ================= 替换区 START ================= */
+const CONFIG = {
+  kicker: '现代材料分析与原理 · 软光刻',
+  titleZh: 'PDMS 软光刻', titleEn: 'PDMS Soft Lithography',
+  camPos: [6.2, 3.8, 6.6], target: [0, 1.0, 0],
+  minDist: 3, maxDist: 16, maxPolar: Math.PI * 0.52,
+  initPart: 'stamp',
+  hasModes: false, hasSteps: true, hasExplode: true,
+  statusText: '浇铸→固化→揭膜→蘸墨→转印',
+  panelMode: '微接触印刷（µCP）——母版浇 PDMS 制印章、蘸烷硫醇、盖印到金衬底形成自组装单分子层（SAM）。'
+};
+
+const PARTS = {
+  bench: {zh:'实验工作台', en:'Workbench', tag:'整机 BENCH',
+    desc:'摆放母版、热台、印章与衬底的实验台。软光刻多在普通洁净实验台完成，无需真空或光刻对准机，设备简单、成本低、可做大块柔性印章。'},
+  master: {zh:'母版', en:'Master', tag:'印版母模 MASTER',
+    desc:'通常是硅片上 SU-8 光刻胶做出浮雕图案的硬质母模，使用前做硅烷化处理防粘。软光刻把光刻技术的精度优势“借”到聚合物上，母版决定印章的微结构。'},
+  prepolymer: {zh:'PDMS 预聚体', en:'PDMS Prepolymer', tag:'原料 MATERIAL',
+    desc:'主剂与固化剂约 10:1 混合的黏稠液，浇在母版上后真空脱泡。铂催化的硅氢化反应（hydrosilylation）让它从液体交联成弹性三维网络，浇铸精度可达亚微米。'},
+  cure: {zh:'固化热台', en:'Cure Hotplate / Oven', tag:'固化 CURE',
+    desc:'加热（约六七十摄氏度）数小时，PDMS 预聚体交联固化成透明弹性体。固化后 PDMS 化学惰性、透气、可拉伸，且能贴合起伏表面——这些是它做软模和印章的优势。'},
+  stamp: {zh:'PDMS 印章', en:'PDMS Stamp', tag:'印章 STAMP',
+    desc:'固化后从母版揭下的透明弹性印章，表面带母版的微浮雕。它是软光刻的“印章本体”：柔软共形、能反复使用，把纳米图案复制到大块柔性印章上。'},
+  ink: {zh:'烷硫醇墨水', en:'Alkanethiol Ink', tag:'墨水 INK',
+    desc:'印章蘸的“墨”是烷硫醇（如 DDT、HDT、ECT）乙醇液。硫醇端基对金、银有强亲和，碳链长短决定 SAM 的致密与缺陷，短链更易自组装、长链更致密。'},
+  substrate: {zh:'目标衬底', en:'Target Substrate (Au/Ti)', tag:'承印 SUBSTRATE',
+    desc:'镀金（通常先镀钛粘附层再镀金）的硅片或柔性箔。硫醇—金配位使墨水分子在金表面定向排列，印章抬起后图案留在金上。'},
+  sam: {zh:'自组装单分子层', en:'SAM Pattern', tag:'成膜 SAM',
+    desc:'硫醇分子在金表面自发排列成约 2–3 纳米厚、倾斜约 30° 的自组装单分子层（self-assembled monolayer），厚度仅几分子却能充当抗蚀剂/功能层——这是 µCP 的核心产物。'}
+};
+
+const MODES = {};
+
+const STEPS = [
+  {name:'浇铸', part:'prepolymer', text:'把 10:1 混合的 PDMS 预聚体浇在母版上，真空脱泡赶走气泡。'},
+  {name:'固化', part:'cure', text:'加热数小时，铂催化硅氢加成交联，液体变成透明弹性体。'},
+  {name:'揭膜', part:'stamp', text:'从母版上把固化好的 PDMS 整张揭下，得到带微浮雕的弹性印章。'},
+  {name:'蘸墨', part:'ink', text:'用烷硫醇乙醇液润湿印章表面，甩去多余墨并吹干。'},
+  {name:'转印', part:'substrate', text:'印章轻轻扣在镀金衬底上，硫醇分子自组装成 SAM 图案后抬起印章。'}
+];
+
+const EXPLODE_VEC = {
+  master:   [-1.3, 0, 0],
+  prepolymer:[-1.9, 0.5, 0.5],
+  cure:     [-1.3, -0.6, 0],
+  stamp:    [0, 1.0, 0],
+  ink:      [1.1, 0.2, -0.6],
+  substrate:[1.4, -0.2, 0.3],
+  sam:      [1.4, 0.6, 0.3]
+};
+
+let stampGrp, pourStream, cureGlow, samMesh, inkGlow, stampBaseY;
+
+function buildBench(M){
+  const g = new THREE.Group();
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.6, 2.2), M.panel);
+  bench.position.y = 0.3; bench.castShadow = true; bench.receiveShadow = true;
+  g.add(bench);
+  return g;
+}
+
+function buildMaster(M){
+  const g = new THREE.Group();
+  const si = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.06, 28), M.wafer);
+  si.position.set(-1.2, 0.63, 0);
+  g.add(si);
+  for(let i=-1;i<=1;i++){
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.7), M.dark);
+    rib.position.set(-1.2 + i*0.2, 0.7, 0);
+    g.add(rib);
+  }
+  return g;
+}
+
+function buildPrepolymer(M){
+  const g = new THREE.Group();
+  const beaker = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.5, 18, 1, true), M.glass);
+  beaker.position.set(-1.9, 0.85, 0.5);
+  g.add(beaker);
+  const liq = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.16, 0.25, 18),
+    new THREE.MeshStandardMaterial({color:0xd8c9e8, roughness:0.3, metalness:0.0, transparent:true, opacity:0.8}));
+  liq.position.set(-1.9, 0.78, 0.5);
+  g.add(liq);
+  pourStream = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 10),
+    new THREE.MeshBasicMaterial({color:0xe6d8f5, transparent:true, opacity:0.0, depthWrite:false}));
+  pourStream.position.set(-1.55, 0.95, 0.3); pourStream.visible = false;
+  g.add(pourStream);
+  return g;
+}
+
+function buildCure(M){
+  const g = new THREE.Group();
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.12, 1.3), M.dark);
+  plate.position.set(-1.2, 0.62, 0);
+  g.add(plate);
+  cureGlow = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 1.1),
+    new THREE.MeshStandardMaterial({color:0xffb066, emissive:0xff7a2f, emissiveIntensity:0.3, roughness:0.4}));
+  cureGlow.position.set(-1.2, 0.7, 0);
+  g.add(cureGlow);
+  return g;
+}
+
+function buildStamp(M){
+  const g = new THREE.Group();
+  stampGrp = g;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.9),
+    new THREE.MeshStandardMaterial({color:0xc9b8e8, roughness:0.35, metalness:0.0, transparent:true, opacity:0.6}));
+  body.position.set(0, 0.72, 0); body.castShadow = true;
+  g.add(body);
+  // 印章底面微浮雕
+  for(let i=-1;i<=1;i++){
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.7),
+      new THREE.MeshStandardMaterial({color:0xb9a5dd, roughness:0.4, transparent:true, opacity:0.7}));
+    rib.position.set(i*0.2, 0.58, 0);
+    g.add(rib);
+  }
+  return g;
+}
+
+function buildInk(M){
+  const g = new THREE.Group();
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 0.1, 18), M.chrome);
+  dish.position.set(1.1, 0.65, -0.6);
+  g.add(dish);
+  inkGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.04, 18),
+    new THREE.MeshStandardMaterial({color:0x6fa8d8, emissive:0x2f6fa8, emissiveIntensity:0.3, roughness:0.3}));
+  inkGlow.position.set(1.1, 0.71, -0.6);
+  g.add(inkGlow);
+  return g;
+}
+
+function buildSubstrate(M){
+  const g = new THREE.Group();
+  const au = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 28),
+    new THREE.MeshStandardMaterial({color:0xd8b84a, roughness:0.25, metalness:0.9}));
+  au.position.set(1.4, 0.63, 0.3);
+  g.add(au);
+  return g;
+}
+
+function buildSam(M){
+  const g = new THREE.Group();
+  samMesh = new THREE.Group();
+  for(let i=-1;i<=1;i++){
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.7),
+      new THREE.MeshStandardMaterial({color:0x8a5ad8, emissive:0x5a2f9e, emissiveIntensity:0.6, roughness:0.4}));
+    line.position.set(1.4 + i*0.2, 0.67, 0.3);
+    samMesh.add(line);
+  }
+  samMesh.visible = false;
+  g.add(samMesh);
+  return g;
+}
+
+function buildAll(){
+  const M = mats();
+  addPart(buildBench(M), 'bench', [0,0,0]);
+  addPart(buildMaster(M), 'master', EXPLODE_VEC.master);
+  addPart(buildPrepolymer(M), 'prepolymer', EXPLODE_VEC.prepolymer);
+  addPart(buildCure(M), 'cure', EXPLODE_VEC.cure);
+  addPart(buildStamp(M), 'stamp', EXPLODE_VEC.stamp);
+  addPart(buildInk(M), 'ink', EXPLODE_VEC.ink);
+  addPart(buildSubstrate(M), 'substrate', EXPLODE_VEC.substrate);
+  addPart(buildSam(M), 'sam', EXPLODE_VEC.sam);
+  Object.keys(groups).forEach(id=>{
+    groups[id].userData.baseY = groups[id].position.y;
+  });
+  stampBaseY = stampGrp.position.y;
+}
+
+function applyModeVisual(m){}
+
+function applyStepVisual(i){
+  if(pourStream) pourStream.visible = (i === 0);
+  if(cureGlow) cureGlow.material.emissiveIntensity = (i === 1) ? 1.4 : 0.3;
+  if(inkGlow) inkGlow.material.emissiveIntensity = (i === 3) ? 1.4 : 0.3;
+  if(samMesh) samMesh.visible = (i >= 4);
+  // 印章：揭膜时升起，转印时压到衬底上方
+  if(stampGrp){
+    if(i === 2) stampGrp.position.y = stampBaseY + 0.6;
+    else if(i === 4) stampGrp.position.y = stampBaseY + 0.15;
+    else stampGrp.position.y = stampBaseY;
+  }
+  if(i === 4){
+    camera.position.set(3.4, 2.4, 3.6);
+    controls.target.set(1.0, 0.9, 0.2);
+  } else if(i === 0){
+    camera.position.set(3.6, 2.6, 3.4);
+    controls.target.set(-1.4, 0.9, 0.2);
+  } else {
+    camera.position.set(...CONFIG.camPos);
+    controls.target.set(...CONFIG.target);
+  }
+  controls.update();
+}
+
+function applyExplodeVisual(v){
+  if(samMesh) samMesh.visible = (v <= 0.05) && (step >= 4);
+}
+
+function applyAnim(){
+  if(pourStream && pourStream.visible){
+    const t = clock.getElapsedTime();
+    pourStream.material.opacity = 0.4 + Math.sin(t*6)*0.15;
+  }
+}
+/* ================= 替换区 END ================= */
+
+/* ================= 通用骨架（勿改） ================= */
+const canvas = document.getElementById('scene');
+const view = document.getElementById('view');
+let renderer, scene, camera, controls, clock;
+let groups = {};
+let mode = null, explode = 0, step = -1, selected = null;
+let rafId = null;
+
+function initRenderer(){
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(view.clientWidth, view.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+}
+
+function initScene(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x141a21);
+  camera = new THREE.PerspectiveCamera(40, view.clientWidth/view.clientHeight, 0.1, 60);
+  camera.position.set(...CONFIG.camPos);
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.target.set(...CONFIG.target);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = CONFIG.minDist;
+  controls.maxDistance = CONFIG.maxDist;
+  controls.maxPolarAngle = CONFIG.maxPolar;
+  clock = new THREE.Clock();
+  const hemi = new THREE.HemisphereLight(0xe6edff, 0x232a33, 0.65);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(6, 10, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.near = 1; key.shadow.camera.far = 30;
+  const sc = 7;
+  key.shadow.camera.left = -sc; key.shadow.camera.right = sc;
+  key.shadow.camera.top = sc; key.shadow.camera.bottom = -sc;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x8fa4d8, 0.5);
+  fill.position.set(-6, 4, -5);
+  scene.add(fill);
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(6.5, 48),
+    new THREE.MeshStandardMaterial({color:0x10151c, roughness:0.85, metalness:0.1})
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -0.01;
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+function mats(){
+  return {
+    frame: new THREE.MeshStandardMaterial({color:0x8b98a6, roughness:0.45, metalness:0.75}),
+    dark:  new THREE.MeshStandardMaterial({color:0x37414c, roughness:0.55, metalness:0.5}),
+    panel: new THREE.MeshStandardMaterial({color:0x222a33, roughness:0.5, metalness:0.4}),
+    wafer: new THREE.MeshStandardMaterial({color:0x9fb6d0, roughness:0.25, metalness:0.7}),
+    resist:new THREE.MeshStandardMaterial({color:0xb9848a, roughness:0.35, metalness:0.1}),
+    mask:  new THREE.MeshStandardMaterial({color:0xdbe6f0, roughness:0.15, metalness:0.4, transparent:true, opacity:0.55}),
+    chrome:new THREE.MeshStandardMaterial({color:0x14181d, roughness:0.2, metalness:0.85}),
+    glass: new THREE.MeshStandardMaterial({color:0xa9c4e8, roughness:0.1, metalness:0.1, transparent:true, opacity:0.35}),
+    glow:  new THREE.MeshStandardMaterial({color:0xc4b5fd, roughness:0.4, metalness:0.1, emissive:0x8b7cf0, emissiveIntensity:0.9}),
+    violet:new THREE.MeshBasicMaterial({color:0x8b7cf0, transparent:true, opacity:0.35, depthWrite:false})
+  };
+}
+
+function addPart(group, id, explodeVec){
+  groups[id] = group;
+  group.userData.partId = id;
+  group.userData.explode = explodeVec;
+  group.traverse(o=>{ if(o.isMesh) o.userData.partId = id; });
+  scene.add(group);
+}
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let hovered = null;
+
+function pickMeshes(){
+  const arr = [];
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) arr.push(o); }));
+  return arr;
+}
+
+function setPointer(e){
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function onMove(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  const id = hits.length ? hits[0].object.userData.partId : null;
+  canvas.style.cursor = id ? 'pointer' : 'grab';
+  if(hovered && hovered !== selected){
+    hovered.material.emissiveIntensity = 0;
+    hovered = null;
+  }
+  if(id && id !== selected){
+    hovered = hits[0].object;
+    hovered.material.emissiveIntensity = 0.22;
+  }
+}
+
+function onClick(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  if(hits.length){
+    selectPart(hits[0].object.userData.partId);
+  }
+}
+
+function selectPart(id){
+  if(!id || !PARTS[id]) return;
+  selected = id;
+  Object.values(groups).forEach(g=>{
+    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
+  });
+  if(hovered){ hovered = null; }
+  const p = PARTS[id];
+  document.getElementById('pTag').textContent = p.tag;
+  document.getElementById('pName').textContent = p.zh;
+  document.getElementById('pEn').textContent = p.en;
+  document.getElementById('pDesc').textContent = p.desc;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : (mode && MODES[mode]
+      ? '当前工作模式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc
+      : '当前展示：<b>'+CONFIG.panelMode+'</b>');
+  document.querySelectorAll('#partChips .chip').forEach(c=>{
+    c.classList.toggle('on', c.dataset.part===id);
+  });
+}
+
+function initPartChips(){
+  const wrap = document.getElementById('partChips');
+  Object.keys(PARTS).forEach(id=>{
+    const b = document.createElement('button');
+    b.className = 'chip'; b.dataset.part = id;
+    b.textContent = PARTS[id].zh.split('（')[0];
+    b.addEventListener('click', ()=>selectPart(id));
+    wrap.appendChild(b);
+  });
+}
+
+function initControls(){
+  document.getElementById('title').innerHTML = CONFIG.titleZh+' <b>'+CONFIG.titleEn+'</b> · 3D 教学拆解';
+  document.title = CONFIG.titleZh+' '+CONFIG.titleEn+' · 3D 教学拆解';
+  document.getElementById('kicker').textContent = CONFIG.kicker;
+  document.getElementById('statusMode').innerHTML = '步骤 <span>'+CONFIG.statusText+'</span>';
+  const ctlMode = document.getElementById('ctlMode'), ctlStep = document.getElementById('ctlStep');
+  if(!CONFIG.hasModes) ctlMode.style.display = 'none'; else buildModeSeg();
+  if(!CONFIG.hasSteps) ctlStep.style.display = 'none'; else buildStepSeg();
+  if(!CONFIG.hasExplode) document.getElementById('ctlExplode').style.display = 'none';
+  document.getElementById('pName').textContent = CONFIG.titleZh;
+  document.getElementById('pEn').textContent = CONFIG.titleEn;
+}
+
+function buildModeSeg(){
+  const wrap = document.getElementById('modeSeg');
+  Object.keys(MODES).forEach(k=>{
+    const b = document.createElement('button');
+    b.dataset.mode = k; b.textContent = MODES[k].zh;
+    wrap.appendChild(b);
+  });
+}
+
+function buildStepSeg(){
+  const wrap = document.getElementById('stepSeg');
+  STEPS.forEach((s,i)=>{
+    const b = document.createElement('button');
+    b.dataset.step = i; b.textContent = s.name;
+    wrap.appendChild(b);
+  });
+}
+
+function setMode(m){
+  mode = m;
+  const cfg = MODES[m];
+  document.getElementById('statusMode').innerHTML = '模式 <span>'+cfg.zh+' '+cfg.en+'</span>';
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  applyModeVisual(m);
+  updatePanelMode();
+}
+
+function updatePanelMode(){
+  if(!selected) return;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : (mode && MODES[mode]
+      ? '当前工作模式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc
+      : '当前展示：<b>'+CONFIG.panelMode+'</b>');
+}
+
+function setExplode(v){
+  explode = v;
+  document.getElementById('explode').value = v*100;
+  Object.keys(groups).forEach(id=>{
+    const g = groups[id];
+    const vec = g.userData.explode;
+    g.position.y = g.userData.baseY + vec[1]*explode;
+    g.position.x = vec[0]*explode;
+    g.position.z = vec[2]*explode;
+  });
+  applyExplodeVisual(v);
+}
+
+function applyExplodeVisual(v){}
+
+function runStep(i){
+  step = i;
+  document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
+  if(i<0){ selectPart(null); return; }
+  const s = STEPS[i];
+  applyStepVisual(i);
+  selectPart(s.part);
+  controls.update();
+  updatePanelMode();
+}
+
+function animate(){
+  rafId = requestAnimationFrame(animate);
+  controls.update();
+  applyAnim();
+  renderer.render(scene, camera);
+}
+
+function applyAnim(){}
+
+function onResize(){
+  const w = view.clientWidth, h = view.clientHeight;
+  if(!w || !h) return;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+function start(){
+  initRenderer();
+  initScene();
+  buildAll();
+  initPartChips();
+  initControls();
+  setExplode(0);
+  window.addEventListener('resize', onResize);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerdown', onClick);
+  document.getElementById('modeSeg').addEventListener('click', e=>{
+    if(e.target.dataset.mode) setMode(e.target.dataset.mode);
+  });
+  document.getElementById('explode').addEventListener('input', e=>{
+    setExplode(parseFloat(e.target.value)/100);
+  });
+  document.getElementById('stepSeg').addEventListener('click', e=>{
+    if(e.target.dataset.step!==undefined){
+      runStep(parseInt(e.target.dataset.step,10));
+    }
+  });
+  selectPart(CONFIG.initPart);
+  window.__webglStarted = true;
+  animate();
+}
+
+if(window.WebGLRenderingContext){
+  try{
+    const test = document.createElement('canvas');
+    const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
+    if(!gl) throw new Error('no webgl');
+  }catch(err){
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+  }
+}
+if(!document.getElementById('fallback').hidden){
+  document.getElementById('pDesc').textContent = '当前环境不支持 WebGL，无法渲染 3D 模型。请使用 Chrome、Edge 或 Firefox 等支持 WebGL 的浏览器打开本文件。';
+} else {
+  if(window.THREE && window.THREE.OrbitControls){
+    start();
+  } else {
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+    document.getElementById('pDesc').textContent = 'Three.js 加载失败（可能处于离线环境）。请联网后刷新本页，或换用支持 WebGL 的浏览器打开。';
+  }
+}
+</script>
+</body>
+</html>

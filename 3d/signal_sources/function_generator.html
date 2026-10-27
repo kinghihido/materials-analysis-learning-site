@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>函数发生器 Function Generator · 3D 教学拆解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101418'/%3E%3Ccircle cx='20' cy='32' r='10' fill='none' stroke='%23a78bfa' stroke-width='4'/%3E%3Ccircle cx='44' cy='32' r='14' fill='none' stroke='%236ea8fe' stroke-width='4'/%3E%3Cpath d='M30 32h4' stroke='%23e2e8f0' stroke-width='3'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#101418; --bg2:#161c22; --bg3:#1d252d;
+    --line:#2b353f; --ink:#e2e8f0; --ink-dim:#94a3b8; --ink-faint:#64748b;
+    --violet:#a78bfa; --blue:#6ea8fe; --amber:#f5c26b; --ok:#4ade80;
+    --panel-w:340px; --ctl-h:64px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  button{font-family:inherit;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:10px 18px; background:var(--bg2); border-bottom:1px solid var(--line);
+    flex:0 0 auto; z-index:20;
+  }
+  .kicker{font-size:12px; letter-spacing:.14em; color:var(--ink-faint); text-transform:uppercase;}
+  h1{font-size:18px; font-weight:600; margin-top:2px; line-height:1.25;}
+  h1 b{color:var(--violet); font-weight:700;}
+  .status{
+    font-size:13px; color:var(--ink-dim); background:var(--bg3);
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px; white-space:nowrap;
+  }
+  .status span{color:var(--ink);}
+  main{flex:1 1 auto; display:flex; min-height:0; position:relative;}
+  #view{flex:1 1 auto; position:relative; min-width:0; background:
+    radial-gradient(120% 90% at 50% 0%, #1a212b 0%, #101418 55%, #0c0f13 100%);}
+  #scene{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+  .hint{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    font-size:12px; color:var(--ink-faint); background:rgba(16,20,24,.72);
+    border:1px solid var(--line); padding:6px 14px; border-radius:999px; pointer-events:none; white-space:nowrap;
+  }
+  .fallback[hidden]{display:none;}
+  .fallback{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; text-align:center; padding:24px; color:var(--ink-dim); font-size:14px;
+  }
+  .fallback h3{color:var(--ink); font-size:16px;}
+  .fallback p{max-width:520px; line-height:1.7;}
+  .badge3d{
+    position:absolute; top:14px; left:14px; z-index:5; font-size:11px; letter-spacing:.08em;
+    color:var(--violet); border:1px solid color-mix(in srgb, var(--violet) 45%, transparent);
+    background:color-mix(in srgb, var(--violet) 12%, transparent);
+    padding:4px 10px; border-radius:6px;
+  }
+  #panel{
+    flex:0 0 var(--panel-w); background:var(--bg2); border-left:1px solid var(--line);
+    overflow-y:auto; padding:18px 18px 26px; min-height:0; z-index:10;
+  }
+  #panel .p-tag{
+    display:inline-block; font-size:11px; letter-spacing:.12em; color:var(--blue);
+    border:1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+    background:color-mix(in srgb, var(--blue) 10%, transparent);
+    padding:3px 9px; border-radius:5px; margin-bottom:10px;
+  }
+  #pName{font-size:17px; line-height:1.4; margin-bottom:4px;}
+  #pEn{font-size:13px; color:var(--violet); margin-bottom:12px;}
+  #pDesc{font-size:13.5px; line-height:1.75; color:var(--ink-dim);}
+  #pMode{margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-faint); line-height:1.7;}
+  #pMode b{color:var(--amber); font-weight:600;}
+  #controls{
+    flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
+    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
+    min-height:var(--ctl-h);
+  }
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
+  .seg{display:flex; gap:6px;}
+  .seg button{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer; transition:all .18s ease; white-space:nowrap;
+  }
+  .seg button:hover{color:var(--ink); border-color:#3d4a57;}
+  .seg button.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
+  .seg button.amber.on{background:var(--amber); border-color:var(--amber); color:#241a06; font-weight:600;}
+  .seg button.blue.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  input[type=range]{
+    width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
+  }
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  .chip{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+  }
+  .chip:hover{color:var(--ink); border-color:#3d4a57;}
+  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
+  .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
+  .stepbadge b{color:var(--amber); font-weight:600;}
+  @media (max-width:900px){
+    main{flex-direction:column;}
+    #panel{flex:0 0 auto; max-height:40%; border-left:none; border-top:1px solid var(--line); padding:12px 16px 16px;}
+    #controls{gap:16px; padding:10px 14px;}
+    .hint{bottom:10px; font-size:11px;}
+  }
+  @media (max-width:560px){
+    h1{font-size:15px;}
+    .kicker{font-size:10px;}
+    #controls{gap:14px;}
+    .seg button{padding:6px 9px; font-size:11.5px;}
+    .badge3d{top:10px; left:10px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="kicker" id="kicker">现代材料分析与原理 · 信号源</div>
+    <h1 id="title">函数发生器 <b>Function Generator</b> · 3D 教学拆解</h1>
+  </div>
+  <div class="status" id="statusMode">模式 <span>正弦波 Sine</span></div>
+</header>
+
+<main>
+  <section id="view" aria-label="函数发生器 3D 场景">
+    <div class="badge3d">WEBGL 3D · 教学示意模型</div>
+    <canvas id="scene"></canvas>
+    <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div class="fallback" id="fallback" hidden>
+      <h3>当前环境无法运行 3D 场景</h3>
+      <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <span class="p-tag" id="pTag">整体装置 OVERALL</span>
+    <h2 id="pName">函数发生器</h2>
+    <div id="pEn">Function Generator</div>
+    <p id="pDesc">往被测电路里"喂"一个已知频率、已知幅度的标准波形的激励源。</p>
+    <div id="pMode">当前展示：<b>正弦波</b>——最纯净的单频激励，用于频响与滤波测试。</div>
+  </aside>
+</main>
+
+<footer id="controls">
+  <div class="ctl" id="ctlMode">
+    <span>输出波形 Waveform</span>
+    <div class="seg" id="modeSeg"></div>
+  </div>
+  <div class="ctl" id="ctlExplode">
+    <span>结构拆解 Exploded View</span>
+    <input type="range" id="explode" min="0" max="100" value="0" aria-label="结构拆解程度">
+  </div>
+  <div class="ctl" id="ctlStep">
+    <span>使用步骤 Setup Steps</span>
+    <div class="seg" id="stepSeg"></div>
+  </div>
+  <div class="ctl" style="min-width:220px; max-width:560px;">
+    <span>部件导航 Parts</span>
+    <div id="partChips"></div>
+  </div>
+</footer>
+
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ================= 替换区 START ================= */
+const CONFIG = {
+  kicker: '现代材料分析与原理 · 信号源',
+  titleZh: '函数发生器', titleEn: 'Function Generator',
+  camPos: [5.8, 3.4, 6.6], target: [0, 0.95, 0],
+  minDist: 2.6, maxDist: 16, maxPolar: Math.PI * 0.52,
+  initPart: 'lcd', initMode: 'sine',
+  hasModes: true, hasSteps: true, hasExplode: true,
+  statusText: '正弦波 Sine',
+  panelMode: '正弦波——最纯净的单频激励；切换输出波形，观察小屏上波形形状与颜色的变化。'
+};
+
+const PARTS = {
+  body: {zh:'机壳', en:'Bench Housing', tag:'整体装置 OVERALL',
+    desc:'函数发生器（function generator）机壳。它是信号源家族里的通用测试源：站在实验链条的激励端，输出已知频率、幅度、波形的标准信号；更高阶的任意波形发生器（arbitrary waveform generator, AWG）还允许从电脑下载自定义波形回放。与示波器是天生一对：发生器输出激励 → 加到 DUT → 示波器看响应。'},
+  lcd: {zh:'波形小屏', en:'Waveform Display', tag:'显示与波形 DISPLAY',
+    desc:'屏上发光条拼出当前输出波形的形状。函数发生器内部以三角波为"母波"：三角波直通、经比较器（comparator）斩成方波、经正弦成形器（sine shaper）弯成正弦——三种波形共享同一频率源，改频率三种波同时变。'},
+  keys: {zh:'参数键区', en:'Parameter Keys', tag:'设置与调节 CONTROL',
+    desc:'Frequency（频率）、Amplitude（幅度）、Offset（直流偏置，在交流波形上叠加可调直流电平）、Phase（相位）参数页与数字键盘。幅度有峰峰值 Vpp、高/低电平、RMS 有效值几种标法，单位切换时数值含义完全不同，设置前先确认当前单位。'},
+  knob: {zh:'调节旋钮', en:'Adjust Knob', tag:'设置与调节 CONTROL',
+    desc:'频率/幅度微调旋钮。面板幅度按匹配负载标定：50Ω 负载下设定的值，若空载或改接高阻输入，实际幅度会近似翻倍——要么把输出阻抗档改成高阻，要么按分压关系换算。'},
+  atten: {zh:'衰减按键', en:'Variable Attenuator', tag:'设置与调节 CONTROL',
+    desc:'可变衰减器（variable attenuator）：一串分压网络按 dB 步进精确压低输出幅度，比直接调放大器增益更线性、更稳定。每衰减 10 dB，功率降到十分之一、电压约为 0.316 倍；先选粗档位再连续细调。'},
+  bncOut: {zh:'Output 输出口', en:'Output (50Ω)', tag:'输出与接口 OUTPUT',
+    desc:'主信号输出 BNC，标称输出阻抗 50Ω，是仪器、同轴电缆与负载共同遵守的标准阻抗。失配会产生反射，使输出幅度与边沿变形——接高阻负载时记得切换阻抗档或按分压换算。'},
+  bncSync: {zh:'Sync 同步输出口', en:'Sync Output', tag:'输出与接口 OUTPUT',
+    desc:'Sync（同步输出）口给出一个与主波形同频的方波边沿，专门送给示波器做外触发：波形不再乱跑、稳定显示，也避免用主信号直接触发造成失真。'}
+};
+
+const MODES = {
+  sine: {zh:'正弦波', en:'Sine', desc:'最纯净、只有单一频率，用于测频响、滤波器带宽与阻抗；是频域测试的标准激励。'},
+  square: {zh:'方波', en:'Square', desc:'边沿陡峭、含丰富奇次谐波，用于测电路带宽、瞬态响应与数字电平；由三角波经比较器斩出。'},
+  triangle: {zh:'三角波', en:'Triangle', desc:'线性升降、斜率恒定，用于扫频驱动、扫描电路与电容充放电观察。'},
+  pulse: {zh:'脉冲波', en:'Pulse', desc:'脉宽与边沿可调的矩形脉冲，用于测器件开关瞬态与延迟，喂出触发时序。'}
+};
+
+const STEPS = [
+  {name:'设波形', part:'keys', text:'选波形类型，设好频率与幅度，幅度从小往大调，别超 DUT 耐压。'},
+  {name:'接输出', part:'bncOut', text:'用同轴电缆把 Output（50Ω）接到被测电路输入端，保证阻抗匹配。'},
+  {name:'接同步', part:'bncSync', text:'Sync 口接示波器外触发，省去手动调触发电平。'},
+  {name:'开输出观察', part:'lcd', text:'打开 Output，在示波器上观察 DUT 的响应波形。'}
+];
+
+const EXPLODE_VEC = {
+  body:      [0, 0, 0],
+  lcd:       [0, 0.7, 0.4],
+  keys:      [-0.9, 0.4, 0.6],
+  knob:      [0.6, 0.45, 0.7],
+  atten:     [-0.45, 0.15, 0.65],
+  bncOut:    [1.1, -0.1, 0.6],
+  bncSync:   [0.55, -0.25, 0.7]
+};
+
+let waveBars = [], waveMat;
+
+function buildBody(M){
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.4, 1.6), M.panel);
+  shell.position.y = 0.8; shell.castShadow = true; shell.receiveShadow = true;
+  g.add(shell);
+  const face = new THREE.Mesh(new THREE.BoxGeometry(2.7, 1.3, 0.06), M.dark);
+  face.position.set(0, 0.8, 0.81); g.add(face);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.12, 1.7), M.frame);
+  rail.position.y = 0.14; g.add(rail);
+  return g;
+}
+
+function buildLcd(M){
+  const g = new THREE.Group();
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.62, 0.08), M.chrome);
+  bezel.position.set(-0.4, 1.18, 0.84); g.add(bezel);
+  waveMat = new THREE.MeshStandardMaterial({color:0x7fe0a8, roughness:0.4, metalness:0.1, emissive:0x2f9e5f, emissiveIntensity:0.95});
+  const N = 26;
+  for(let i=0;i<N;i++){
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.02), waveMat);
+    bar.position.set(-1.12 + i*0.059, 1.18, 0.9);
+    g.add(bar);
+    waveBars.push(bar);
+  }
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.56, 0.02), M.glass);
+  glass.position.set(-0.4, 1.18, 0.92); g.add(glass);
+  return g;
+}
+
+function buildKeys(M){
+  const g = new THREE.Group();
+  const xs = [-1.25, -0.92, -0.59, -0.26];
+  xs.forEach(x=>{
+    const k = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.13, 0.07), M.frame);
+    k.position.set(x, 0.78, 0.86); g.add(k);
+  });
+  return g;
+}
+
+function buildKnob(M){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.06, 32), M.chrome);
+  base.rotation.x = Math.PI/2; base.position.set(0.85, 1.05, 0.85); g.add(base);
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.16, 32), M.frame);
+  knob.rotation.x = Math.PI/2; knob.position.set(0.85, 1.05, 0.92); knob.castShadow = true; g.add(knob);
+  const ptr = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.02), M.glow);
+  ptr.position.set(0.85, 1.15, 1.0); g.add(ptr);
+  return g;
+}
+
+function buildAtten(M){
+  const g = new THREE.Group();
+  const xs = [-1.15, -0.78, -0.41];
+  xs.forEach(x=>{
+    const k = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.07), M.dark);
+    k.position.set(x, 0.52, 0.86); g.add(k);
+  });
+  return g;
+}
+
+function bnc(M, x, y, ringMat){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.08, 24), M.chrome);
+  base.rotation.x = Math.PI/2; base.position.set(x, y, 0.86); g.add(base);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.18, 24), M.frame);
+  body.rotation.x = Math.PI/2; body.position.set(x, y, 0.97); g.add(body);
+  const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.06, 16), M.chrome);
+  tip.rotation.x = Math.PI/2; tip.position.set(x, y, 1.09); g.add(tip);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.02, 8, 24), ringMat);
+  ring.position.set(x, y, 0.9); g.add(ring);
+  return g;
+}
+
+function buildBncOut(M){ return bnc(M, 0.62, 0.4, M.glow); }
+function buildBncSync(M){ return bnc(M, 1.2, 0.4, M.frame); }
+
+function buildAll(){
+  const M = mats();
+  addPart(buildBody(M), 'body', EXPLODE_VEC.body);
+  addPart(buildLcd(M), 'lcd', EXPLODE_VEC.lcd);
+  addPart(buildKeys(M), 'keys', EXPLODE_VEC.keys);
+  addPart(buildKnob(M), 'knob', EXPLODE_VEC.knob);
+  addPart(buildAtten(M), 'atten', EXPLODE_VEC.atten);
+  addPart(buildBncOut(M), 'bncOut', EXPLODE_VEC.bncOut);
+  addPart(buildBncSync(M), 'bncSync', EXPLODE_VEC.bncSync);
+  Object.keys(groups).forEach(id=>{
+    groups[id].userData.baseY = groups[id].position.y;
+  });
+}
+
+const MODE_COLOR = { sine: 0x2f9e5f, square: 0xc98a2f, triangle: 0x8b7cf0, pulse: 0x2f7fd1 };
+
+function waveShape(mode, t){
+  // t in [0,1], returns y in [-1,1], two periods
+  const p = (t*2) % 1;
+  if(mode === 'sine') return Math.sin(p*Math.PI*2);
+  if(mode === 'square') return Math.sin(p*Math.PI*2) >= 0 ? 1 : -1;
+  if(mode === 'triangle') return 2*Math.abs(2*(p - Math.floor(p+0.5))) - 1;
+  if(mode === 'pulse') return (p >= 0.30 && p <= 0.42) ? 1 : -0.8;
+  return 0;
+}
+
+function applyModeVisual(m){
+  if(waveMat){
+    waveMat.color.setHex(MODE_COLOR[m] || 0x2f9e5f);
+    waveMat.emissive.setHex(MODE_COLOR[m] || 0x2f9e5f);
+  }
+  if(waveBars.length){
+    waveBars.forEach((b, i)=>{
+      const y = waveShape(m, i/(waveBars.length-1));
+      b.scale.y = 0.12 + 0.16*(y+1);
+    });
+  }
+}
+
+function applyStepVisual(i){
+  if(i === 2){
+    camera.position.set(3.4, 1.8, 4.6);
+    controls.target.set(0.6, 0.4, 0.6);
+  } else if(i === 3){
+    camera.position.set(3.8, 2.6, 4.4);
+    controls.target.set(-0.4, 1.1, 0.4);
+  } else {
+    camera.position.set(...CONFIG.camPos);
+    controls.target.set(...CONFIG.target);
+  }
+  controls.update();
+}
+
+function applyExplodeVisual(v){}
+
+function applyAnim(){
+  if(step === 3 && waveMat){
+    const t = clock.getElapsedTime();
+    waveMat.emissiveIntensity = 0.95 + Math.sin(t * 3.2) * 0.25;
+  }
+}
+/* ================= 替换区 END ================= */
+
+/* ================= 通用骨架（勿改） ================= */
+const canvas = document.getElementById('scene');
+const view = document.getElementById('view');
+let renderer, scene, camera, controls, clock;
+let groups = {};
+let mode = null, explode = 0, step = -1, selected = null;
+let rafId = null;
+
+function initRenderer(){
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(view.clientWidth, view.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+}
+
+function initScene(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x141a21);
+  camera = new THREE.PerspectiveCamera(40, view.clientWidth/view.clientHeight, 0.1, 60);
+  camera.position.set(...CONFIG.camPos);
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.target.set(...CONFIG.target);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = CONFIG.minDist;
+  controls.maxDistance = CONFIG.maxDist;
+  controls.maxPolarAngle = CONFIG.maxPolar;
+  clock = new THREE.Clock();
+  const hemi = new THREE.HemisphereLight(0xe6edff, 0x232a33, 0.65);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(6, 10, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.near = 1; key.shadow.camera.far = 30;
+  const sc = 7;
+  key.shadow.camera.left = -sc; key.shadow.camera.right = sc;
+  key.shadow.camera.top = sc; key.shadow.camera.bottom = -sc;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x8fa4d8, 0.5);
+  fill.position.set(-6, 4, -5);
+  scene.add(fill);
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(6.5, 48),
+    new THREE.MeshStandardMaterial({color:0x10151c, roughness:0.85, metalness:0.1})
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -0.01;
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+function mats(){
+  return {
+    frame: new THREE.MeshStandardMaterial({color:0x8b98a6, roughness:0.45, metalness:0.75}),
+    dark:  new THREE.MeshStandardMaterial({color:0x37414c, roughness:0.55, metalness:0.5}),
+    panel: new THREE.MeshStandardMaterial({color:0x222a33, roughness:0.5, metalness:0.4}),
+    wafer: new THREE.MeshStandardMaterial({color:0x9fb6d0, roughness:0.25, metalness:0.7}),
+    resist:new THREE.MeshStandardMaterial({color:0xb9848a, roughness:0.35, metalness:0.1}),
+    mask:  new THREE.MeshStandardMaterial({color:0xdbe6f0, roughness:0.15, metalness:0.4, transparent:true, opacity:0.55}),
+    chrome:new THREE.MeshStandardMaterial({color:0x14181d, roughness:0.2, metalness:0.85}),
+    glass: new THREE.MeshStandardMaterial({color:0xa9c4e8, roughness:0.1, metalness:0.1, transparent:true, opacity:0.35}),
+    glow:  new THREE.MeshStandardMaterial({color:0xc4b5fd, roughness:0.4, metalness:0.1, emissive:0x8b7cf0, emissiveIntensity:0.9}),
+    violet:new THREE.MeshBasicMaterial({color:0x8b7cf0, transparent:true, opacity:0.35, depthWrite:false})
+  };
+}
+
+function addPart(group, id, explodeVec){
+  groups[id] = group;
+  group.userData.partId = id;
+  group.userData.explode = explodeVec;
+  group.traverse(o=>{ if(o.isMesh) o.userData.partId = id; });
+  scene.add(group);
+}
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let hovered = null;
+
+function pickMeshes(){
+  const arr = [];
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) arr.push(o); }));
+  return arr;
+}
+
+function setPointer(e){
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function onMove(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  const id = hits.length ? hits[0].object.userData.partId : null;
+  canvas.style.cursor = id ? 'pointer' : 'grab';
+  if(hovered && hovered !== selected){
+    hovered.material.emissiveIntensity = 0;
+    hovered = null;
+  }
+  if(id && id !== selected){
+    hovered = hits[0].object;
+    hovered.material.emissiveIntensity = 0.22;
+  }
+}
+
+function onClick(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  if(hits.length){
+    selectPart(hits[0].object.userData.partId);
+  }
+}
+
+function selectPart(id){
+  if(!id || !PARTS[id]) return;
+  selected = id;
+  Object.values(groups).forEach(g=>{
+    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
+  });
+  if(hovered){ hovered = null; }
+  const p = PARTS[id];
+  document.getElementById('pTag').textContent = p.tag;
+  document.getElementById('pName').textContent = p.zh;
+  document.getElementById('pEn').textContent = p.en;
+  document.getElementById('pDesc').textContent = p.desc;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : (mode && MODES[mode]
+      ? '当前工作模式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc
+      : '当前展示：<b>'+CONFIG.panelMode+'</b>');
+  document.querySelectorAll('#partChips .chip').forEach(c=>{
+    c.classList.toggle('on', c.dataset.part===id);
+  });
+}
+
+function initPartChips(){
+  const wrap = document.getElementById('partChips');
+  Object.keys(PARTS).forEach(id=>{
+    const b = document.createElement('button');
+    b.className = 'chip'; b.dataset.part = id;
+    b.textContent = PARTS[id].zh.split('（')[0];
+    b.addEventListener('click', ()=>selectPart(id));
+    wrap.appendChild(b);
+  });
+}
+
+function initControls(){
+  document.getElementById('title').innerHTML = CONFIG.titleZh+' <b>'+CONFIG.titleEn+'</b> · 3D 教学拆解';
+  document.title = CONFIG.titleZh+' '+CONFIG.titleEn+' · 3D 教学拆解';
+  document.getElementById('kicker').textContent = CONFIG.kicker;
+  document.getElementById('statusMode').innerHTML = '模式 <span>'+CONFIG.statusText+'</span>';
+  const ctlMode = document.getElementById('ctlMode'), ctlStep = document.getElementById('ctlStep');
+  if(!CONFIG.hasModes) ctlMode.style.display = 'none'; else buildModeSeg();
+  if(!CONFIG.hasSteps) ctlStep.style.display = 'none'; else buildStepSeg();
+  if(!CONFIG.hasExplode) document.getElementById('ctlExplode').style.display = 'none';
+  document.getElementById('pName').textContent = CONFIG.titleZh;
+  document.getElementById('pEn').textContent = CONFIG.titleEn;
+}
+
+function buildModeSeg(){
+  const wrap = document.getElementById('modeSeg');
+  Object.keys(MODES).forEach(k=>{
+    const b = document.createElement('button');
+    b.dataset.mode = k; b.textContent = MODES[k].zh;
+    wrap.appendChild(b);
+  });
+}
+
+function buildStepSeg(){
+  const wrap = document.getElementById('stepSeg');
+  STEPS.forEach((s,i)=>{
+    const b = document.createElement('button');
+    b.dataset.step = i; b.textContent = s.name;
+    wrap.appendChild(b);
+  });
+}
+
+function setMode(m){
+  mode = m;
+  const cfg = MODES[m];
+  document.getElementById('statusMode').innerHTML = '模式 <span>'+cfg.zh+' '+cfg.en+'</span>';
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  applyModeVisual(m);
+  updatePanelMode();
+}
+
+function updatePanelMode(){
+  if(!selected) return;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : (mode && MODES[mode]
+      ? '当前工作模式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc
+      : '当前展示：<b>'+CONFIG.panelMode+'</b>');
+}
+
+function setExplode(v){
+  explode = v;
+  document.getElementById('explode').value = v*100;
+  Object.keys(groups).forEach(id=>{
+    const g = groups[id];
+    const vec = g.userData.explode;
+    g.position.y = g.userData.baseY + vec[1]*explode;
+    g.position.x = vec[0]*explode;
+    g.position.z = vec[2]*explode;
+  });
+  applyExplodeVisual(explode);
+}
+
+function applyExplodeVisual(v){}
+
+function runStep(i){
+  step = i;
+  document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
+  if(i<0){ selectPart(null); return; }
+  const s = STEPS[i];
+  applyStepVisual(i);
+  selectPart(s.part);
+  controls.update();
+  updatePanelMode();
+}
+
+function animate(){
+  rafId = requestAnimationFrame(animate);
+  controls.update();
+  applyAnim();
+  renderer.render(scene, camera);
+}
+
+function applyAnim(){}
+
+function onResize(){
+  const w = view.clientWidth, h = view.clientHeight;
+  if(!w || !h) return;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+function start(){
+  initRenderer();
+  initScene();
+  buildAll();
+  initPartChips();
+  initControls();
+  if(CONFIG.hasModes) setMode(CONFIG.initMode);
+  setExplode(0);
+  window.addEventListener('resize', onResize);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerdown', onClick);
+  document.getElementById('modeSeg').addEventListener('click', e=>{
+    if(e.target.dataset.mode) setMode(e.target.dataset.mode);
+  });
+  document.getElementById('explode').addEventListener('input', e=>{
+    setExplode(parseFloat(e.target.value)/100);
+  });
+  document.getElementById('stepSeg').addEventListener('click', e=>{
+    if(e.target.dataset.step!==undefined){
+      runStep(parseInt(e.target.dataset.step,10));
+    }
+  });
+  selectPart(CONFIG.initPart);
+  window.__webglStarted = true;
+  animate();
+}
+
+if(window.WebGLRenderingContext){
+  try{
+    const test = document.createElement('canvas');
+    const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
+    if(!gl) throw new Error('no webgl');
+  }catch(err){
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+  }
+}
+if(!document.getElementById('fallback').hidden){
+  document.getElementById('pDesc').textContent = '当前环境不支持 WebGL，无法渲染 3D 模型。请使用 Chrome、Edge 或 Firefox 等支持 WebGL 的浏览器打开本文件。';
+} else {
+  if(window.THREE && window.THREE.OrbitControls){
+    start();
+  } else {
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+    document.getElementById('pDesc').textContent = 'Three.js 加载失败（可能处于离线环境）。请联网后刷新本页，或换用支持 WebGL 的浏览器打开。';
+  }
+}
+</script>
+</body>
+</html>

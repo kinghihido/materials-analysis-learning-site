@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>示波器探头 Oscilloscope Probe · 3D 教学拆解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101418'/%3E%3Ccircle cx='20' cy='32' r='10' fill='none' stroke='%23a78bfa' stroke-width='4'/%3E%3Ccircle cx='44' cy='32' r='14' fill='none' stroke='%236ea8fe' stroke-width='4'/%3E%3Cpath d='M30 32h4' stroke='%23e2e8f0' stroke-width='3'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#101418; --bg2:#161c22; --bg3:#1d252d;
+    --line:#2b353f; --ink:#e2e8f0; --ink-dim:#94a3b8; --ink-faint:#64748b;
+    --violet:#a78bfa; --blue:#6ea8fe; --amber:#f5c26b; --ok:#4ade80;
+    --panel-w:340px; --ctl-h:64px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  button{font-family:inherit;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:10px 18px; background:var(--bg2); border-bottom:1px solid var(--line);
+    flex:0 0 auto; z-index:20;
+  }
+  .kicker{font-size:12px; letter-spacing:.14em; color:var(--ink-faint); text-transform:uppercase;}
+  h1{font-size:18px; font-weight:600; margin-top:2px; line-height:1.25;}
+  h1 b{color:var(--violet); font-weight:700;}
+  .status{
+    font-size:13px; color:var(--ink-dim); background:var(--bg3);
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px; white-space:nowrap;
+  }
+  .status span{color:var(--ink);}
+  main{flex:1 1 auto; display:flex; min-height:0; position:relative;}
+  #view{flex:1 1 auto; position:relative; min-width:0; background:
+    radial-gradient(120% 90% at 50% 0%, #1a212b 0%, #101418 55%, #0c0f13 100%);}
+  #scene{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+  .hint{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    font-size:12px; color:var(--ink-faint); background:rgba(16,20,24,.72);
+    border:1px solid var(--line); padding:6px 14px; border-radius:999px; pointer-events:none; white-space:nowrap;
+  }
+  .fallback[hidden]{display:none;}
+  .fallback{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; text-align:center; padding:24px; color:var(--ink-dim); font-size:14px;
+  }
+  .fallback h3{color:var(--ink); font-size:16px;}
+  .fallback p{max-width:520px; line-height:1.7;}
+  .badge3d{
+    position:absolute; top:14px; left:14px; z-index:5; font-size:11px; letter-spacing:.08em;
+    color:var(--violet); border:1px solid color-mix(in srgb, var(--violet) 45%, transparent);
+    background:color-mix(in srgb, var(--violet) 12%, transparent);
+    padding:4px 10px; border-radius:6px;
+  }
+  #panel{
+    flex:0 0 var(--panel-w); background:var(--bg2); border-left:1px solid var(--line);
+    overflow-y:auto; padding:18px 18px 26px; min-height:0; z-index:10;
+  }
+  #panel .p-tag{
+    display:inline-block; font-size:11px; letter-spacing:.12em; color:var(--blue);
+    border:1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+    background:color-mix(in srgb, var(--blue) 10%, transparent);
+    padding:3px 9px; border-radius:5px; margin-bottom:10px;
+  }
+  #pName{font-size:17px; line-height:1.4; margin-bottom:4px;}
+  #pEn{font-size:13px; color:var(--violet); margin-bottom:12px;}
+  #pDesc{font-size:13.5px; line-height:1.75; color:var(--ink-dim);}
+  #pMode{margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-faint); line-height:1.7;}
+  #pMode b{color:var(--amber); font-weight:600;}
+  #controls{
+    flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
+    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
+    min-height:var(--ctl-h);
+  }
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
+  .seg{display:flex; gap:6px;}
+  .seg button{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer; transition:all .18s ease; white-space:nowrap;
+  }
+  .seg button:hover{color:var(--ink); border-color:#3d4a57;}
+  .seg button.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
+  .seg button.amber.on{background:var(--amber); border-color:var(--amber); color:#241a06;}
+  .seg button.blue.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  input[type=range]{
+    width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
+  }
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  .chip{
+    appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
+    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+  }
+  .chip:hover{color:var(--ink); border-color:#3d4a57;}
+  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
+  .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
+  .stepbadge b{color:var(--amber); font-weight:600;}
+  @media (max-width:900px){
+    main{flex-direction:column;}
+    #panel{flex:0 0 auto; max-height:40%; border-left:none; border-top:1px solid var(--line); padding:12px 16px 16px;}
+    #controls{gap:16px; padding:10px 14px;}
+    .hint{bottom:10px; font-size:11px;}
+  }
+  @media (max-width:560px){
+    h1{font-size:15px;}
+    .kicker{font-size:10px;}
+    #controls{gap:14px;}
+    .seg button{padding:6px 9px; font-size:11.5px;}
+    .badge3d{top:10px; left:10px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="kicker" id="kicker">现代材料分析与原理 · 模块</div>
+    <h1 id="title">仪器 <b>Instrument</b> · 3D 教学拆解</h1>
+  </div>
+  <div class="status" id="statusMode">模式 <span>—</span></div>
+</header>
+
+<main>
+  <section id="view" aria-label="3D 场景">
+    <div class="badge3d">WEBGL 3D · 教学示意模型</div>
+    <canvas id="scene"></canvas>
+    <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div class="fallback" id="fallback" hidden>
+      <h3>当前环境无法运行 3D 场景</h3>
+      <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <span class="p-tag" id="pTag">整体装置 OVERALL</span>
+    <h2 id="pName">仪器</h2>
+    <div id="pEn">Instrument English Name</div>
+    <p id="pDesc">一句话总述：这台仪器在测量/工艺链里解决什么问题。</p>
+    <div id="pMode">当前展示：<b>初始状态</b>——一句话说明。</div>
+  </aside>
+</main>
+
+<footer id="controls">
+  <div class="ctl" id="ctlMode">
+    <span>工作模式 Mode</span>
+    <div class="seg" id="modeSeg"></div>
+  </div>
+  <div class="ctl" id="ctlExplode">
+    <span>结构拆解 Exploded View</span>
+    <input type="range" id="explode" min="0" max="100" value="0" aria-label="结构拆解程度">
+  </div>
+  <div class="ctl" id="ctlStep">
+    <span>工艺步骤 Process Steps</span>
+    <div class="seg" id="stepSeg"></div>
+  </div>
+  <div class="ctl" style="min-width:220px; max-width:560px;">
+    <span>部件导航 Parts</span>
+    <div id="partChips"></div>
+  </div>
+</footer>
+
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ================= 替换区 START ================= */
+const CONFIG = {
+  kicker: '现代材料分析与原理 · 电学测量仪器',
+  titleZh: '示波器探头', titleEn: 'Oscilloscope Probe',
+  camPos: [4.6, 2.6, 6.8], target: [-0.3, 0.5, 0],
+  minDist: 1.8, maxDist: 14, maxPolar: Math.PI * 0.52,
+  initPart: 'rcNet',
+  hasModes: true, hasSteps: true, hasExplode: true,
+  statusText: '10X 衰减',
+  panelMode: '10X 衰减——探头内 R1=9R2 与示波器输入构成十分压一分；切换 1X/10X 观察内部分压网络与直通路径的变化。'
+};
+
+const PARTS = {
+  bnc: {zh:'BNC 卡口接头', en:'BNC Connector', tag:'连接与接口 CONNECTOR',
+    desc:'BNC（Bayonet Neill–Concelman）卡口接头：插到底旋转半圈即锁紧。内芯导体传信号，金属屏蔽层兼作回流地并挡住外界电磁干扰——屏蔽接地好坏直接决定微弱信号的信噪比。'},
+  cable: {zh:'同轴电缆', en:'Coaxial Cable', tag:'连接与接口 CONNECTOR',
+    desc:'四层结构：塑料护套、介质绝缘层、金属屏蔽层、内芯导体。特性阻抗 Z0 由内芯直径、屏蔽内径与介质决定，常用 50 Ω；终端阻抗不匹配时行波会反射回源端，造成波形畸变。'},
+  handle: {zh:'探头手柄', en:'Probe Body', tag:'探头本体 PROBE',
+    desc:'注塑外壳把衰减补偿网络包在里面。本模型用透明教学壳，可以直接看见内部 RC 补偿元件——真实探头只有尾部的 1X/10X 开关与补偿调节孔露在外面。'},
+  rcNet: {zh:'RC 补偿网络', en:'Compensation Network', tag:'内部电路 INTERNALS',
+    desc:'探头内 R1 与 C1 并联，经可调电容 C_A 接到示波器输入 R2、C2。补偿条件 R1C1 = R2C2 让探头的 RC 时间常数与示波器输入相等：全频段均匀衰减十倍、高频不抬升也不滚降，成为无感宽带分压器。'},
+  switch: {zh:'衰减比开关', en:'1X/10X Switch', tag:'探头本体 PROBE',
+    desc:'在 1X 直通与 10X 衰减间切换。10X 下屏幕读数要乘 10 换回真实电压，或在示波器菜单选 10X 让仪器自动缩放；忘乘衰减比是最常见的数量级错误。'},
+  trim: {zh:'补偿调节电容', en:'Compensation Trimmer', tag:'探头本体 PROBE',
+    desc:'可调补偿电容 C_A：每换一台示波器（输入电容不同）都要接校准方波输出重新调平。拐角上冲翘起是过补偿（探头电容偏大），圆钝爬坡是欠补偿（探头电容偏小），平直直角才正确。'},
+  hook: {zh:'探针钩夹', en:'Tip & Hook', tag:'测量端 TIP',
+    desc:'金属探针尖加钩夹，勾住被测节点不怕手抖。配套接地线要尽量短：长地线环像小天线，会拾取工频与高频干扰，在波形上叠出细密毛刺。'},
+  dut: {zh:'被测节点', en:'Test Point', tag:'测量对象 DUT',
+    desc:'被测电路节点。高内阻节点（如 CMOS 栅极）上，探头电容 C_T 与源内阻 R_S 形成时间常数 R_S·C_T，快边沿被"抹圆"、电阻负载把幅度等比压低——这就是负载效应（loading effect）：屏幕波形不等于电路真相。'}
+};
+
+const MODES = {
+  x10: {zh:'10X 衰减', en:'10X Attenuation', desc:'探头内 R1 = 9 R2 与示波器输入 R2 构成 10:1 分压：输入阻抗升到约 10 MΩ、探头电容降到十几皮法，负载更小、带宽更宽；代价是小信号需把 V/div 调小重新放大。'},
+  x1: {zh:'1X 直通', en:'1X Direct', desc:'信号不衰减直接进示波器：小信号看得清，但电缆与输入电容大（约 70 pF）、带宽窄（约 20 MHz），只配低频小信号场合；此时内部分压电阻被旁路。'}
+};
+
+const STEPS = [
+  {name:'接入示波器', part:'bnc', text:'探头尾部 BNC 卡口锁紧示波器通道输入口；同轴电缆内芯传信号、屏蔽层回流兼抗干扰。'},
+  {name:'选择衰减', part:'switch', text:'拨到 10X：R1=9R2 十分压一分，输入阻抗 10 MΩ、对被测电路负载更小；小信号才拨 1X，但带宽变窄。'},
+  {name:'补偿调节', part:'trim', text:'接到校准方波输出，用无感改锥调补偿电容 C_A，使 R1C1 = R2C2；屏幕方波拐角平直即补偿正确。'},
+  {name:'接触测量点', part:'hook', text:'钩夹接触被测节点；记住探头不是透明导线——它的电阻电容会分压、滤高频，测完先怀疑测量链路再怀疑电路。'}
+];
+
+const EXPLODE_VEC = {
+  bnc:    [-1.3, 0, 0],
+  cable:  [0, 0.55, 0],
+  handle: [0, 0, 0],
+  rcNet:  [0, -0.55, 0.35],
+  switch: [0, 0.65, 0],
+  trim:   [0.7, 0, 0.35],
+  hook:   [1.1, 0, 0],
+  dut:    [1.9, 0, 0]
+};
+
+let r1mesh, bypass;
+
+function buildBnc(M){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.5, 20), M.chrome);
+  body.rotation.z = Math.PI/2; body.position.set(-2.35, 0.55, 0); body.castShadow = true;
+  g.add(body);
+  const pin1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.06), M.frame);
+  pin1.position.set(-2.35, 0.72, 0.12); g.add(pin1);
+  const pin2 = pin1.clone(); pin2.position.set(-2.35, 0.72, -0.12); g.add(pin2);
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 12), M.wafer);
+  core.rotation.z = Math.PI/2; core.position.set(-2.68, 0.55, 0);
+  g.add(core);
+  return g;
+}
+
+function buildCable(M){
+  const g = new THREE.Group();
+  const segs = [[-2.0, 0.55, 0], [-1.62, 0.72, 0], [-1.24, 0.55, 0]];
+  segs.forEach(p=>{
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.45, 12), M.dark);
+    c.rotation.z = Math.PI/2; c.position.set(p[0], p[1], p[2]);
+    g.add(c);
+  });
+  return g;
+}
+
+function buildHandle(M){
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 1.3, 22), M.glass);
+  shell.rotation.z = Math.PI/2; shell.position.set(-0.3, 0.55, 0); shell.castShadow = true;
+  g.add(shell);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.12, 22), M.dark);
+  cap.rotation.z = Math.PI/2; cap.position.set(0.4, 0.55, 0);
+  g.add(cap);
+  return g;
+}
+
+function buildRcNet(M){
+  const g = new THREE.Group();
+  // R1（10X 分压电阻）——1X 模式下隐藏
+  r1mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.34, 12), M.resist);
+  r1mesh.rotation.z = Math.PI/2; r1mesh.position.set(-0.52, 0.55, 0.06);
+  g.add(r1mesh);
+  // C1 探头电容
+  const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.1), M.chrome);
+  c1.position.set(-0.18, 0.55, 0.06);
+  g.add(c1);
+  // C_A 可调补偿电容（竖直小圆柱）
+  const ca = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 12), M.frame);
+  ca.position.set(0.12, 0.68, 0.06);
+  g.add(ca);
+  // 直通路径（1X 模式显示：绕过 R1 的直导线）
+  bypass = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.0, 8), M.wafer);
+  bypass.rotation.z = Math.PI/2; bypass.position.set(-0.3, 0.42, -0.06);
+  bypass.visible = false;
+  g.add(bypass);
+  return g;
+}
+
+function buildSwitch(M){
+  const g = new THREE.Group();
+  const sw = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.14), M.dark);
+  sw.position.set(-0.5, 0.86, 0); sw.castShadow = true;
+  g.add(sw);
+  const lever = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.06), M.frame);
+  lever.position.set(-0.5, 0.97, 0);
+  g.add(lever);
+  return g;
+}
+
+function buildTrim(M){
+  const g = new THREE.Group();
+  const scr = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 12), M.frame);
+  scr.rotation.x = Math.PI/2; scr.position.set(0.22, 0.55, 0.28);
+  g.add(scr);
+  return g;
+}
+
+function buildHook(M){
+  const g = new THREE.Group();
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 14), M.chrome);
+  tip.rotation.z = -Math.PI/2; tip.position.set(0.62, 0.55, 0); tip.castShadow = true;
+  g.add(tip);
+  const hookRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.025, 8, 18), M.frame);
+  hookRing.position.set(0.92, 0.55, 0);
+  g.add(hookRing);
+  return g;
+}
+
+function buildDut(M){
+  const g = new THREE.Group();
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.07, 0.45),
+    new THREE.MeshStandardMaterial({color:0x14302a, roughness:0.6, metalness:0.2}));
+  board.position.set(1.9, 0.05, 0); board.receiveShadow = true;
+  g.add(board);
+  const node = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), M.chrome);
+  node.position.set(1.75, 0.15, 0);
+  g.add(node);
+  const chip = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.08, 0.2), M.dark);
+  chip.position.set(2.05, 0.13, 0);
+  g.add(chip);
+  return g;
+}
+
+function buildAll(){
+  const M = mats();
+  addPart(buildBnc(M), 'bnc', EXPLODE_VEC.bnc);
+  addPart(buildCable(M), 'cable', EXPLODE_VEC.cable);
+  addPart(buildHandle(M), 'handle', EXPLODE_VEC.handle);
+  addPart(buildRcNet(M), 'rcNet', EXPLODE_VEC.rcNet);
+  addPart(buildSwitch(M), 'switch', EXPLODE_VEC.switch);
+  addPart(buildTrim(M), 'trim', EXPLODE_VEC.trim);
+  addPart(buildHook(M), 'hook', EXPLODE_VEC.hook);
+  addPart(buildDut(M), 'dut', EXPLODE_VEC.dut);
+  Object.keys(groups).forEach(id=>{
+    groups[id].userData.baseY = groups[id].position.y;
+  });
+}
+
+function applyModeVisual(m){
+  if(r1mesh) r1mesh.visible = (m === 'x10');
+  if(bypass) bypass.visible = (m === 'x1');
+}
+
+function applyStepVisual(i){
+  if(i === 0){
+    camera.position.set(-1.2, 1.2, 3.2);
+    controls.target.set(-2.3, 0.55, 0);
+  } else if(i === 3){
+    camera.position.set(2.2, 1.0, 2.6);
+    controls.target.set(1.2, 0.4, 0);
+  } else {
+    camera.position.set(...CONFIG.camPos);
+    controls.target.set(...CONFIG.target);
+  }
+  controls.update();
+}
+/* ================= 替换区 END ================= */
+
+/* ================= 通用骨架（勿改） ================= */
+const canvas = document.getElementById('scene');
+const view = document.getElementById('view');
+let renderer, scene, camera, controls, clock;
+let groups = {};
+let mode = null, explode = 0, step = -1, selected = null;
+let rafId = null;
+
+function initRenderer(){
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(view.clientWidth, view.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+}
+
+function initScene(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x141a21);
+  camera = new THREE.PerspectiveCamera(40, view.clientWidth/view.clientHeight, 0.1, 60);
+  camera.position.set(...CONFIG.camPos);
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.target.set(...CONFIG.target);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = CONFIG.minDist;
+  controls.maxDistance = CONFIG.maxDist;
+  controls.maxPolarAngle = CONFIG.maxPolar;
+  clock = new THREE.Clock();
+  const hemi = new THREE.HemisphereLight(0xe6edff, 0x232a33, 0.65);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(6, 10, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.near = 1; key.shadow.camera.far = 30;
+  const sc = 7;
+  key.shadow.camera.left = -sc; key.shadow.camera.right = sc;
+  key.shadow.camera.top = sc; key.shadow.camera.bottom = -sc;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x8fa4d8, 0.5);
+  fill.position.set(-6, 4, -5);
+  scene.add(fill);
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(6.5, 48),
+    new THREE.MeshStandardMaterial({color:0x10151c, roughness:0.85, metalness:0.1})
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -0.01;
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+function mats(){
+  return {
+    frame: new THREE.MeshStandardMaterial({color:0x8b98a6, roughness:0.45, metalness:0.75}),
+    dark:  new THREE.MeshStandardMaterial({color:0x37414c, roughness:0.55, metalness:0.5}),
+    panel: new THREE.MeshStandardMaterial({color:0x222a33, roughness:0.5, metalness:0.4}),
+    wafer: new THREE.MeshStandardMaterial({color:0x9fb6d0, roughness:0.25, metalness:0.7}),
+    resist:new THREE.MeshStandardMaterial({color:0xb9848a, roughness:0.35, metalness:0.1}),
+    mask:  new THREE.MeshStandardMaterial({color:0xdbe6f0, roughness:0.15, metalness:0.4, transparent:true, opacity:0.55}),
+    chrome:new THREE.MeshStandardMaterial({color:0x14181d, roughness:0.2, metalness:0.85}),
+    glass: new THREE.MeshStandardMaterial({color:0xa9c4e8, roughness:0.1, metalness:0.1, transparent:true, opacity:0.35}),
+    glow:  new THREE.MeshStandardMaterial({color:0xc4b5fd, roughness:0.4, metalness:0.1, emissive:0x8b7cf0, emissiveIntensity:0.9}),
+    violet:new THREE.MeshBasicMaterial({color:0x8b7cf0, transparent:true, opacity:0.35, depthWrite:false})
+  };
+}
+
+function addPart(group, id, explodeVec){
+  groups[id] = group;
+  group.userData.partId = id;
+  group.userData.explode = explodeVec;
+  group.traverse(o=>{ if(o.isMesh) o.userData.partId = id; });
+  scene.add(group);
+}
+
+/* 交互 */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let hovered = null;
+
+function pickMeshes(){
+  const arr = [];
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) arr.push(o); }));
+  return arr;
+}
+
+function setPointer(e){
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function onMove(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  const id = hits.length ? hits[0].object.userData.partId : null;
+  canvas.style.cursor = id ? 'pointer' : 'grab';
+  if(hovered && hovered !== selected){
+    hovered.material.emissiveIntensity = 0;
+    hovered = null;
+  }
+  if(id && id !== selected){
+    hovered = hits[0].object;
+    hovered.material.emissiveIntensity = 0.22;
+  }
+}
+
+function onClick(e){
+  setPointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickMeshes(), false);
+  if(hits.length){
+    selectPart(hits[0].object.userData.partId);
+  }
+}
+
+function selectPart(id){
+  if(!id || !PARTS[id]) return;
+  selected = id;
+  Object.values(groups).forEach(g=>{
+    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
+  });
+  if(hovered){ hovered = null; }
+  const p = PARTS[id];
+  document.getElementById('pTag').textContent = p.tag;
+  document.getElementById('pName').textContent = p.zh;
+  document.getElementById('pEn').textContent = p.en;
+  document.getElementById('pDesc').textContent = p.desc;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : (mode && MODES[mode]
+      ? '当前工作模式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc
+      : '当前展示：<b>'+CONFIG.panelMode+'</b>');
+  document.querySelectorAll('#partChips .chip').forEach(c=>{
+    c.classList.toggle('on', c.dataset.part===id);
+  });
+}
+
+function initPartChips(){
+  const wrap = document.getElementById('partChips');
+  Object.keys(PARTS).forEach(id=>{
+    const b = document.createElement('button');
+    b.className = 'chip'; b.dataset.part = id;
+    b.textContent = PARTS[id].zh.split('（')[0];
+    b.addEventListener('click', ()=>selectPart(id));
+    wrap.appendChild(b);
+  });
+}
+
+function initControls(){
+  document.getElementById('title').innerHTML = CONFIG.titleZh+' <b>'+CONFIG.titleEn+'</b> · 3D 教学拆解';
+  document.title = CONFIG.titleZh+' '+CONFIG.titleEn+' · 3D 教学拆解';
+  document.getElementById('kicker').textContent = CONFIG.kicker;
+  document.getElementById('statusMode').innerHTML = '模式 <span>'+CONFIG.statusText+'</span>';
+  // 控件开关
+  const ctlMode = document.getElementById('ctlMode'), ctlStep = document.getElementById('ctlStep');
+  if(!CONFIG.hasModes) ctlMode.style.display = 'none'; else buildModeSeg();
+  if(!CONFIG.hasSteps) ctlStep.style.display = 'none'; else buildStepSeg();
+  if(!CONFIG.hasExplode) document.getElementById('ctlExplode').style.display = 'none';
+  document.getElementById('pName').textContent = CONFIG.titleZh;
+  document.getElementById('pEn').textContent = CONFIG.titleEn;
+}
+
+function buildModeSeg(){
+  const wrap = document.getElementById('modeSeg');
+  Object.keys(MODES).forEach(k=>{
+    const b = document.createElement('button');
+    b.dataset.mode = k; b.textContent = MODES[k].zh;
+    wrap.appendChild(b);
+  });
+}
+
+function buildStepSeg(){
+  const wrap = document.getElementById('stepSeg');
+  STEPS.forEach((s,i)=>{
+    const b = document.createElement('button');
+    b.dataset.step = i; b.textContent = s.name;
+    wrap.appendChild(b);
+  });
+}
+
+function setMode(m){
+  mode = m;
+  const cfg = MODES[m];
+  document.getElementById('statusMode').innerHTML = '模式 <span>'+cfg.zh+' '+cfg.en+'</span>';
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  applyModeVisual(m);
+  updatePanelMode();
+}
+
+function updatePanelMode(){
+  if(!selected) return;
+  document.getElementById('pMode').innerHTML = step>=0
+    ? '当前工艺步骤：<b>'+STEPS[step].name+'</b>——'+STEPS[step].text
+    : (mode && MODES[mode]
+      ? '当前工作模式：<b>'+MODES[mode].zh+'</b>——'+MODES[mode].desc
+      : '当前展示：<b>'+CONFIG.panelMode+'</b>');
+}
+
+function setExplode(v){
+  explode = v;
+  document.getElementById('explode').value = v*100;
+  Object.keys(groups).forEach(id=>{
+    const g = groups[id];
+    const vec = g.userData.explode;
+    g.position.y = g.userData.baseY + vec[1]*explode;
+    g.position.x = vec[0]*explode;
+    g.position.z = vec[2]*explode;
+  });
+  applyExplodeVisual(explode);
+}
+
+function applyExplodeVisual(v){ /* 可在替换区覆盖：爆炸时隐藏光束/辉光等特效 */ }
+
+function runStep(i){
+  step = i;
+  document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
+  if(i<0){ selectPart(null); return; }
+  const s = STEPS[i];
+  applyStepVisual(i);
+  selectPart(s.part);
+  controls.update();
+  updatePanelMode();
+}
+
+function animate(){
+  rafId = requestAnimationFrame(animate);
+  controls.update();
+  applyAnim();
+  renderer.render(scene, camera);
+}
+
+function applyAnim(){ /* 可在替换区覆盖：光束呼吸、辉光脉动等 */ }
+
+function onResize(){
+  const w = view.clientWidth, h = view.clientHeight;
+  if(!w || !h) return;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+function start(){
+  initRenderer();
+  initScene();
+  buildAll();
+  initPartChips();
+  initControls();
+  setExplode(0);
+  window.addEventListener('resize', onResize);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerdown', onClick);
+  document.getElementById('modeSeg').addEventListener('click', e=>{
+    if(e.target.dataset.mode) setMode(e.target.dataset.mode);
+  });
+  document.getElementById('explode').addEventListener('input', e=>{
+    setExplode(parseFloat(e.target.value)/100);
+  });
+  document.getElementById('stepSeg').addEventListener('click', e=>{
+    if(e.target.dataset.step!==undefined){
+      runStep(parseInt(e.target.dataset.step,10));
+    }
+  });
+  selectPart(CONFIG.initPart);
+  window.__webglStarted = true;
+  animate();
+}
+
+if(window.WebGLRenderingContext){
+  try{
+    const test = document.createElement('canvas');
+    const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
+    if(!gl) throw new Error('no webgl');
+  }catch(err){
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+  }
+}
+if(!document.getElementById('fallback').hidden){
+  document.getElementById('pDesc').textContent = '当前环境不支持 WebGL，无法渲染 3D 模型。请使用 Chrome、Edge 或 Firefox 等支持 WebGL 的浏览器打开本文件。';
+} else {
+  if(window.THREE && window.THREE.OrbitControls){
+    start();
+  } else {
+    document.getElementById('fallback').hidden = false;
+    canvas.hidden = true;
+    document.getElementById('pDesc').textContent = 'Three.js 加载失败（可能处于离线环境）。请联网后刷新本页，或换用支持 WebGL 的浏览器打开。';
+  }
+}
+</script>
+</body>
+</html>
