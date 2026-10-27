@@ -10,7 +10,7 @@
     --bg:#101418; --bg2:#161c22; --bg3:#1d252d;
     --line:#2b353f; --ink:#e2e8f0; --ink-dim:#94a3b8; --ink-faint:#64748b;
     --violet:#a78bfa; --blue:#6ea8fe; --amber:#f5c26b; --ok:#4ade80;
-    --panel-w:340px; --ctl-h:64px;
+    --panel-w:340px; --ctl-h:44px;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
@@ -76,33 +76,33 @@
   /* ===== 底部控制 ===== */
   #controls{
     flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
-    display:flex; flex-wrap:wrap; gap:10px 22px; align-items:flex-start; padding:10px 18px;
-    overflow-y:auto; max-height:36vh; min-height:var(--ctl-h);
+    display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; padding:8px 14px;
+    overflow:visible; min-height:var(--ctl-h);
   }
-  .ctl{display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:190px;}
-  .chips-ctl{flex:1 1 100%; min-width:0; max-width:none;}
+  .ctl{display:flex; flex-direction:column; gap:4px; flex:0 1 auto; min-width:0;}
+  .chips-ctl{flex:1 1 auto; min-width:280px; max-width:none;}
   .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
   .seg{display:flex; gap:6px;}
   .seg button{
     appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
-    font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer; transition:all .18s ease; white-space:nowrap;
+    font-size:12px; padding:5px 10px; border-radius:8px; cursor:pointer; transition:all .18s ease; white-space:nowrap;
   }
   .seg button:hover{color:var(--ink); border-color:#3d4a57;}
   .seg button.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
   .seg button.amber.on{background:var(--amber); border-color:var(--amber); color:#241a06;}
   .seg button.blue.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
   input[type=range]{
-    width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
+    width:120px; accent-color:var(--violet); height:22px; cursor:pointer;
   }
   #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:none;}
-  .steptag{position:absolute; left:14px; bottom:48px; z-index:6; font-size:12px; line-height:1.55;
+  .steptag{position:absolute; left:14px; bottom:40px; z-index:6; font-size:11.5px; line-height:1.45;
     color:var(--amber); background:rgba(16,20,24,.85); border:1px solid color-mix(in srgb, var(--amber) 45%, transparent);
-    padding:6px 12px; border-radius:8px; pointer-events:none; max-width:68%;}
+    padding:5px 10px; border-radius:8px; pointer-events:none; max-width:56%;}
   .steptag b{color:var(--amber);}
   .chip{
     appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
-    font-size:11.5px; padding:4px 8px; border-radius:999px; cursor:pointer; transition:all .16s ease;
-    white-space:normal; text-align:center; line-height:1.3; min-height:24px;
+    font-size:11px; padding:3px 7px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    white-space:normal; text-align:center; line-height:1.2; min-height:22px;
   }
   .chip:hover{color:var(--ink); border-color:#3d4a57;}
   .chip.on{background:var(--amber); border-color:var(--amber); color:#241a06; font-weight:600;}
