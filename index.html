@@ -172,6 +172,16 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
 }
 .tabs button:hover{color:var(--ink);}
 .tabs button.on{color:var(--gcol, var(--violet)); border-bottom-color:var(--gcol, var(--violet)); font-weight:600;}
+.art-tabs-row{display:flex; align-items:stretch; gap:10px; background:var(--bg2); border-bottom:1px solid var(--line); padding-right:14px;}
+.art-tabs-row .tabs{flex:1 1 auto; min-width:0; border-bottom:none;}
+.collapse-btn{
+  appearance:none; flex:0 0 auto; align-self:center; border:1px solid var(--line); background:var(--bg3);
+  color:var(--ink-dim); font-size:12px; padding:7px 12px; border-radius:999px; cursor:pointer;
+  transition:all .18s ease; white-space:nowrap;
+}
+.collapse-btn:hover{color:var(--ink); border-color:var(--line2);}
+.collapse-btn.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
+#view-article.collapsed .art-top{display:none;}
 
 #articleHost{flex:1 1 auto; min-height:0; position:relative;}
 .article{height:100%; display:none; flex-direction:column;}
@@ -318,6 +328,8 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
   .back{padding:7px 11px; font-size:12.5px;}
   .tabs{padding:0 10px;}
   .tabs button{padding:10px 12px 9px; font-size:13px;}
+  .art-tabs-row{padding-right:8px; gap:6px;}
+  .collapse-btn{padding:6px 9px; font-size:11.5px;}
   .tab-body{padding:20px 14px 36px;}
   .lab-iframe{height:520px;}
   .lab-btn{padding:6px 12px; font-size:12px;}
@@ -445,13 +457,16 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
         </div>
       </div>
     </div>
-    <nav class="tabs" id="artTabs" aria-label="篇章内栏目">
-      <button type="button" data-tab="overview">总览</button>
-      <button type="button" data-tab="pages">逐页讲解</button>
-      <button type="button" data-tab="summary">总结 · 自测</button>
-      <button type="button" data-tab="glossary">速查表</button>
-      <button type="button" data-tab="lab">3D 仪器</button>
-    </nav>
+    <div class="art-tabs-row">
+      <nav class="tabs" id="artTabs" aria-label="篇章内栏目">
+        <button type="button" data-tab="overview">总览</button>
+        <button type="button" data-tab="pages">逐页讲解</button>
+        <button type="button" data-tab="summary">总结 · 自测</button>
+        <button type="button" data-tab="glossary">速查表</button>
+        <button type="button" data-tab="lab">3D 仪器</button>
+      </nav>
+      <button type="button" class="collapse-btn" id="collapseArt" title="收起/展开上方标题信息，给 3D 场景更多空间">收起头部 ▲</button>
+    </div>
     <div id="articleHost">
       <section class='article' id='art-photolithography' data-slug='photolithography' data-group='photo' data-cn='光刻' data-en='Photolithography' data-pdf='Lecture Photolithography.pdf' data-pages='19' data-chars='12320' data-ov='0'>
 <div class='tab-body tab-overview' data-tab='overview'>
@@ -2629,7 +2644,36 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
       if (body) body.scrollTop = 0;
     }
     if (tab === "lab"){ lazyLabs(sec); }
+    syncCollapse();
   }
+  /* ---------- 收起头部（给 3D 更多空间） ---------- */
+  function syncCollapse(){
+    var want = false;
+    if (state.tab === "lab"){
+      var saved = null;
+      try { saved = localStorage.getItem("labCollapse"); } catch(err){}
+      if (saved === "1") want = true;
+    }
+    artView.classList.toggle("collapsed", want);
+    var btn = $("collapseArt");
+    btn.classList.toggle("on", want);
+    btn.innerHTML = want ? '展开头部 ▼' : '收起头部 ▲';
+    if (want && state.tab === "lab"){
+      try { fitLabFrame(currentSection()); } catch(err){}
+    }
+  }
+  $("collapseArt").addEventListener("click", function(){
+    if (state.tab !== "lab"){
+      var sec = currentSection();
+      location.hash = "#/art/" + state.slug + "/lab";
+      switchTab(sec, "lab");
+    }
+    var next = !artView.classList.contains("collapsed");
+    artView.classList.toggle("collapsed", next);
+    try { localStorage.setItem("labCollapse", next ? "1" : "0"); } catch(err){}
+    syncCollapse();
+    try { fitLabFrame(currentSection()); } catch(err){}
+  });
   for (var tbi=0;tbi<tabBtns.length;tbi++){
     (function(btn){
       btn.addEventListener("click", function(){
