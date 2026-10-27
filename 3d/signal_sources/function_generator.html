@@ -10,7 +10,7 @@
     --bg:#101418; --bg2:#161c22; --bg3:#1d252d;
     --line:#2b353f; --ink:#e2e8f0; --ink-dim:#94a3b8; --ink-faint:#64748b;
     --violet:#a78bfa; --blue:#6ea8fe; --amber:#f5c26b; --ok:#4ade80;
-    --panel-w:340px; --ctl-h:44px;
+    --panel-w:300px; --ctl-h:44px;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
@@ -34,7 +34,7 @@
   }
   .status span{color:var(--ink);}
   main{flex:1 1 auto; display:flex; min-height:0; position:relative;}
-  #view{flex:1 1 auto; position:relative; min-width:0; background:
+  #view{flex:1 1 auto; position:relative; min-width:0; overflow:hidden; background:
     radial-gradient(120% 90% at 50% 0%, #1a212b 0%, #101418 55%, #0c0f13 100%);}
   #scene{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
   .hint{
@@ -91,10 +91,6 @@
     width:120px; accent-color:var(--violet); height:22px; cursor:pointer;
   }
   #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:none;}
-  .steptag{position:absolute; left:14px; bottom:40px; z-index:6; font-size:11.5px; line-height:1.45;
-    color:var(--amber); background:rgba(16,20,24,.85); border:1px solid color-mix(in srgb, var(--amber) 45%, transparent);
-    padding:5px 10px; border-radius:8px; pointer-events:none; max-width:56%;}
-  .steptag b{color:var(--amber);}
   .chip{
     appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
     font-size:11px; padding:3px 7px; border-radius:999px; cursor:pointer; transition:all .16s ease;
@@ -138,7 +134,6 @@
     <div class="badge3d">WEBGL 3D · 教学示意模型</div>
     <canvas id="scene"></canvas>
     <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
-    <div id="stepTag" class="steptag" hidden></div>
     <div class="fallback" id="fallback" hidden>
       <h3>当前环境无法运行 3D 场景</h3>
       <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
@@ -707,11 +702,10 @@ function applyExplodeVisual(v){}
 function runStep(i){
   step = i;
   document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
-  if(i<0){ selectPart(null); var _st0=document.getElementById('stepTag'); if(_st0) _st0.hidden=true; return; }
+  if(i<0){ selectPart(null); return; }
   const s = STEPS[i];
   applyStepVisual(i);
   selectPart(s.part);
-  var _st=document.getElementById('stepTag'); if(_st){ _st.hidden=false; _st.innerHTML='<b>'+s.name+'</b> — '+s.text; }
   controls.update();
   updatePanelMode();
 }
