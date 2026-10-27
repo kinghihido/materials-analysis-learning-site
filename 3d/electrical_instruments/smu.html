@@ -72,10 +72,11 @@
   #pMode b{color:var(--amber); font-weight:600;}
   #controls{
     flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
-    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
-    min-height:var(--ctl-h);
+    display:flex; flex-wrap:wrap; gap:10px 22px; align-items:flex-start; padding:10px 18px;
+    overflow-y:auto; max-height:36vh; min-height:var(--ctl-h);
   }
-  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:190px;}
+  .chips-ctl{flex:1 1 100%; min-width:0; max-width:none;}
   .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
   .seg{display:flex; gap:6px;}
   .seg button{
@@ -89,13 +90,18 @@
   input[type=range]{
     width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
   }
-  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:none;}
+  .steptag{position:absolute; left:14px; bottom:48px; z-index:6; font-size:12px; line-height:1.55;
+    color:var(--amber); background:rgba(16,20,24,.85); border:1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+    padding:6px 12px; border-radius:8px; pointer-events:none; max-width:68%;}
+  .steptag b{color:var(--amber);}
   .chip{
     appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
-    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    font-size:11.5px; padding:4px 8px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    white-space:normal; text-align:center; line-height:1.3; min-height:24px;
   }
   .chip:hover{color:var(--ink); border-color:#3d4a57;}
-  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .chip.on{background:var(--amber); border-color:var(--amber); color:#241a06; font-weight:600;}
   .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
   .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
   .stepbadge b{color:var(--amber); font-weight:600;}
@@ -132,6 +138,7 @@
     <div class="badge3d">WEBGL 3D · 教学示意模型</div>
     <canvas id="scene"></canvas>
     <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div id="stepTag" class="steptag" hidden></div>
     <div class="fallback" id="fallback" hidden>
       <h3>当前环境无法运行 3D 场景</h3>
       <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
@@ -160,7 +167,7 @@
     <span>测量步骤 Measure Steps</span>
     <div class="seg" id="stepSeg"></div>
   </div>
-  <div class="ctl" style="min-width:220px; max-width:560px;">
+  <div class="ctl chips-ctl">
     <span>部件导航 Parts</span>
     <div id="partChips"></div>
   </div>
@@ -220,10 +227,10 @@ const EXPLODE_VEC = {
   knob:   [0.55, 0.45, 0.7],
   terminals: [1.05, 0.25, 0.55],
   outSwitch: [-1.05, 0.15, 0.65],
-  dut:    [-2.3, -0.35, 0.4]
+  dut:    [1.6, -0.35, 0.35]
 };
 
-let lcdGlow, knobGrp;
+let lcdGlow, knobPtr, outLever, outLamp, wireGroup, scanBars, vLamp, iLamp;
 
 function buildBody(M){
   const g = new THREE.Group();
@@ -244,6 +251,20 @@ function buildLcd(M){
   lcdGlow = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.44, 0.03),
     new THREE.MeshStandardMaterial({color:0xbfe3ff, roughness:0.25, metalness:0.1, emissive:0x2f7fd1, emissiveIntensity:0.55}));
   lcdGlow.position.set(-0.45, 1.18, 0.89); g.add(lcdGlow);
+  // V / I 模式灯：vi 模式亮蓝灯（源电压），iv 模式亮黄灯（源电流）
+  vLamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.02), new THREE.MeshBasicMaterial({color:0x6ea8fe}));
+  vLamp.position.set(-1.1, 1.37, 0.9); g.add(vLamp);
+  iLamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.02), new THREE.MeshBasicMaterial({color:0xf5c26b}));
+  iLamp.position.set(-0.96, 1.37, 0.9); g.add(iLamp);
+  // SWEEP 扫描条：仅在"扫描读数"步出现
+  scanBars = new THREE.Group();
+  for(let j=0;j<8;j++){
+    const h = 0.04 + 0.14*Math.abs(Math.sin(j*0.9));
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.07, h, 0.012), new THREE.MeshBasicMaterial({color:0xf5c26b}));
+    b.position.set(-1.08 + j*0.13, 0.99, 0.9);
+    scanBars.add(b);
+  }
+  scanBars.visible = false; g.add(scanBars);
   const glass = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.48, 0.02), M.glass);
   glass.position.set(-0.45, 1.18, 0.91); g.add(glass);
   return g;
@@ -266,13 +287,12 @@ function buildKeys(M){
 
 function buildKnob(M){
   const g = new THREE.Group();
-  knobGrp = g;
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 32), M.chrome);
   base.rotation.x = Math.PI/2; base.position.set(0.78, 1.05, 0.85); g.add(base);
   const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.16, 32), M.frame);
   knob.rotation.x = Math.PI/2; knob.position.set(0.78, 1.05, 0.92); knob.castShadow = true; g.add(knob);
-  const ptr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.02), M.glow);
-  ptr.position.set(0.78, 1.16, 1.0); g.add(ptr);
+  knobPtr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.02), M.glow);
+  knobPtr.position.set(0.78, 1.16, 1.0); g.add(knobPtr);
   return g;
 }
 
@@ -295,8 +315,11 @@ function buildOutSwitch(M){
   const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.08), M.chrome);
   base.position.set(-1.2, 0.42, 0.85); g.add(base);
-  const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.22, 12), M.red);
-  lever.rotation.x = Math.PI/2.4; lever.position.set(-1.2, 0.46, 0.95); g.add(lever);
+  outLever = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.22, 12), M.red);
+  outLever.rotation.x = Math.PI/2.4; outLever.position.set(-1.2, 0.46, 0.95); g.add(outLever);
+  // 输出指示灯：按下 OUTPUT 后点亮绿色
+  outLamp = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.02), new THREE.MeshBasicMaterial({color:0x4ade80}));
+  outLamp.position.set(-0.88, 0.42, 0.87); outLamp.visible = false; g.add(outLamp);
   return g;
 }
 
@@ -317,14 +340,30 @@ function buildPcb(M){
 function buildDut(M){
   const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.5), M.dark);
-  base.position.y = 0.04; g.add(base);
+  base.position.set(2.55, 0.04, 0.3); g.add(base);
   const bodyR = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.42, 20), M.resist);
-  bodyR.rotation.z = Math.PI/2; bodyR.position.y = 0.3; g.add(bodyR);
+  bodyR.rotation.z = Math.PI/2; bodyR.position.set(2.55, 0.3, 0.3); g.add(bodyR);
   const l1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 10), M.chrome);
-  l1.rotation.z = Math.PI/2; l1.position.set(-0.35, 0.3, 0); g.add(l1);
-  const l2 = l1.clone(); l2.position.x = 0.35; g.add(l2);
-  g.position.set(-2.0, 0, 0.3);
+  l1.rotation.z = Math.PI/2; l1.position.set(2.2, 0.3, 0.3); g.add(l1);
+  const l2 = l1.clone(); l2.position.x = 2.9; g.add(l2);
   return g;
+}
+
+// 四线开尔文接线：仅"接线"步可见（2 根红 force + 2 根黑 sense）
+function buildWires(){
+  wireGroup = new THREE.Group();
+  const mk = (pts, color)=>{
+    const curve = new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(p[0], p[1], p[2])));
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.02, 8),
+      new THREE.MeshBasicMaterial({color}));
+    wireGroup.add(tube);
+  };
+  mk([[0.45,0.52,0.95],[1.3,0.14,0.8],[2.2,0.3,0.33]], 0xe0654f);
+  mk([[0.72,0.52,0.95],[1.5,0.10,0.72],[2.9,0.3,0.27]], 0x3a424c);
+  mk([[0.99,0.52,0.95],[1.9,0.16,0.88],[2.2,0.3,0.37]], 0xe0654f);
+  mk([[1.26,0.52,0.95],[2.2,0.12,0.8],[2.9,0.3,0.33]], 0x3a424c);
+  wireGroup.visible = false;
+  scene.add(wireGroup);
 }
 
 function buildAll(){
@@ -341,41 +380,52 @@ function buildAll(){
   addPart(buildTerminals(M), 'terminals', EXPLODE_VEC.terminals);
   addPart(buildOutSwitch(M), 'outSwitch', EXPLODE_VEC.outSwitch);
   addPart(buildDut(M), 'dut', EXPLODE_VEC.dut);
+  buildWires();
   Object.keys(groups).forEach(id=>{
     groups[id].userData.baseY = groups[id].position.y;
   });
 }
 
 const MODE_LCD_COLOR = { vi: 0x2f7fd1, iv: 0xc98a2f };
-const MODE_KNOB_ANG = { vi: 0, iv: 1.2 };
 
 function applyModeVisual(m){
   if(lcdGlow){
     lcdGlow.material.color.setHex(MODE_LCD_COLOR[m] || 0x2f7fd1);
     lcdGlow.material.emissive.setHex(MODE_LCD_COLOR[m] || 0x2f7fd1);
   }
-  if(knobGrp) knobGrp.rotation.y = MODE_KNOB_ANG[m] || 0;
+  // vi = 源电压测电流：亮蓝 V 灯；iv = 源电流测电压：亮黄 I 灯
+  if(vLamp) vLamp.visible = (m === 'vi');
+  if(iLamp) iLamp.visible = (m === 'iv');
+  if(knobPtr) knobPtr.rotation.z = (m === 'iv') ? 0.9 : 0;
 }
 
+// 每步专属机位：设定→按键旋钮特写；接线→四线+DUT 全景；开输出→拨杆特写；扫描→LCD 特写
+const STEP_CAM = [
+  {pos:[2.8, 1.7, 3.8], tgt:[0.55, 1.0, 0.4]},
+  {pos:[4.4, 1.5, 3.6], tgt:[1.6, 0.4, 0.5]},
+  {pos:[2.4, 1.3, 3.4], tgt:[-1.15, 0.45, 0.6]},
+  {pos:[3.4, 2.3, 3.8], tgt:[-0.45, 1.18, 0.5]}
+];
+
 function applyStepVisual(i){
-  if(lcdGlow) lcdGlow.material.emissiveIntensity = (i === 3) ? 1.5 : 0.55;
-  if(i === 2){
-    camera.position.set(3.2, 2.0, 4.2);
-    controls.target.set(0.2, 0.6, 0.5);
-  } else if(i === 3){
-    camera.position.set(4.0, 2.8, 4.6);
-    controls.target.set(-0.2, 1.0, 0.2);
-  } else {
-    camera.position.set(...CONFIG.camPos);
-    controls.target.set(...CONFIG.target);
-  }
+  // 设定步：旋钮指针拧到设定角
+  if(knobPtr) knobPtr.rotation.z = (i === 0) ? -0.9 : 0;
+  // 接线步：四线开尔文线缆出现
+  if(wireGroup) wireGroup.visible = (i === 1);
+  // 开输出步：拨杆扳上 + 绿色输出灯亮
+  if(outLever) outLever.rotation.x = (i >= 2) ? Math.PI/2 - 0.55 : Math.PI/2.4;
+  if(outLamp) outLamp.visible = (i >= 2);
+  // 扫描读数步：LCD 下方扫描条出现
+  if(scanBars) scanBars.visible = (i === 3);
+  const c = STEP_CAM[i];
+  if(c){ camera.position.set(...c.pos); controls.target.set(...c.tgt); }
   controls.update();
 }
 
 function applyExplodeVisual(v){}
 
 function applyAnim(){
-  if(lcdGlow && step === 3){
+  if(step === 3 && lcdGlow){
     const t = clock.getElapsedTime();
     lcdGlow.material.emissiveIntensity = 1.3 + Math.sin(t * 3.2) * 0.25;
   }
@@ -460,6 +510,76 @@ function addPart(group, id, explodeVec){
   scene.add(group);
 }
 
+
+const MAT_ORIG = new WeakMap();
+function saveMat(m){
+  if(!m || MAT_ORIG.has(m)) return;
+  MAT_ORIG.set(m, {
+    color: m.color ? m.color.getHex() : 0,
+    emissive: m.emissive ? m.emissive.getHex() : 0,
+    emissiveIntensity: m.emissiveIntensity,
+    opacity: m.opacity,
+    transparent: m.transparent
+  });
+}
+function restoreMat(m){
+  const o = MAT_ORIG.get(m);
+  if(!o) return;
+  if(m.color) m.color.setHex(o.color);
+  if(m.emissive) m.emissive.setHex(o.emissive);
+  if(m.emissiveIntensity !== undefined) m.emissiveIntensity = o.emissiveIntensity;
+  if(m.opacity !== undefined) m.opacity = o.opacity;
+  if(m.transparent !== undefined) m.transparent = o.transparent;
+}
+const SEL_COLOR = 0xffb84d;
+let selHelper = null;
+function clearPartFX(){
+  if(selHelper){ scene.remove(selHelper); selHelper = null; }
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) restoreMat(o.material); }));
+}
+function applyDim(id){
+  const target = groups[id];
+  Object.values(groups).forEach(g=>{
+    const isSel = g === target;
+    g.traverse(o=>{
+      if(!o.isMesh) return;
+      saveMat(o.material);
+      const m = o.material, o0 = MAT_ORIG.get(m);
+      if(isSel){
+        const glass = o0.transparent && o0.opacity !== undefined && o0.opacity < 0.85;
+        if(m.emissive){ m.emissive.setHex(SEL_COLOR); m.emissiveIntensity = glass ? 0.9 : 1.3; }
+        if(!glass && m.color){ m.color.setHex(o0.color).multiplyScalar(1.22); }
+        if(glass && m.opacity !== undefined){ m.opacity = Math.max(o0.opacity, 0.68); }
+      } else {
+        if(m.color){ m.color.setHex(o0.color).multiplyScalar(0.7); }
+        if(m.emissive){ m.emissive.setHex(0); m.emissiveIntensity = 0; }
+      }
+    });
+  });
+  if(target){
+    selHelper = new THREE.BoxHelper(target, SEL_COLOR);
+    scene.add(selHelper);
+  }
+}
+function hoverFX(mesh){
+  const m = mesh.material;
+  saveMat(m);
+  const o0 = MAT_ORIG.get(m);
+  if(m.color){ m.color.setHex(o0.color); }
+  if(m.emissive){ m.emissive.setHex(SEL_COLOR); m.emissiveIntensity = 0.32; }
+}
+function unhoverFX(mesh){
+  const m = mesh.material;
+  restoreMat(m);
+  if(selected && m.color && m.emissive){
+    const o0 = MAT_ORIG.get(m);
+    if(mesh.userData.partId !== selected && o0){
+      m.color.setHex(o0.color).multiplyScalar(0.7);
+      m.emissive.setHex(0); m.emissiveIntensity = 0;
+    }
+  }
+}
+
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let hovered = null;
@@ -482,13 +602,13 @@ function onMove(e){
   const hits = raycaster.intersectObjects(pickMeshes(), false);
   const id = hits.length ? hits[0].object.userData.partId : null;
   canvas.style.cursor = id ? 'pointer' : 'grab';
-  if(hovered && hovered !== selected){
-    hovered.material.emissiveIntensity = 0;
+  if(hovered && hovered !== selected && hovered.material){
+    unhoverFX(hovered);
     hovered = null;
   }
-  if(id && id !== selected){
+  if(id && id !== selected && hits[0].object.material){
     hovered = hits[0].object;
-    hovered.material.emissiveIntensity = 0.22;
+    hoverFX(hovered);
   }
 }
 
@@ -504,9 +624,8 @@ function onClick(e){
 function selectPart(id){
   if(!id || !PARTS[id]) return;
   selected = id;
-  Object.values(groups).forEach(g=>{
-    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
-  });
+  clearPartFX();
+  applyDim(id);
   if(hovered){ hovered = null; }
   const p = PARTS[id];
   document.getElementById('pTag').textContent = p.tag;
@@ -601,10 +720,11 @@ function applyExplodeVisual(v){}
 function runStep(i){
   step = i;
   document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
-  if(i<0){ selectPart(null); return; }
+  if(i<0){ selectPart(null); var _st0=document.getElementById('stepTag'); if(_st0) _st0.hidden=true; return; }
   const s = STEPS[i];
   applyStepVisual(i);
   selectPart(s.part);
+  var _st=document.getElementById('stepTag'); if(_st){ _st.hidden=false; _st.innerHTML='<b>'+s.name+'</b> — '+s.text; }
   controls.update();
   updatePanelMode();
 }
@@ -612,6 +732,7 @@ function runStep(i){
 function animate(){
   rafId = requestAnimationFrame(animate);
   controls.update();
+  if(selHelper) selHelper.update();
   applyAnim();
   renderer.render(scene, camera);
 }

@@ -72,10 +72,11 @@
   #pMode b{color:var(--amber); font-weight:600;}
   #controls{
     flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
-    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
-    min-height:var(--ctl-h);
+    display:flex; flex-wrap:wrap; gap:10px 22px; align-items:flex-start; padding:10px 18px;
+    overflow-y:auto; max-height:36vh; min-height:var(--ctl-h);
   }
-  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:190px;}
+  .chips-ctl{flex:1 1 100%; min-width:0; max-width:none;}
   .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
   .seg{display:flex; gap:6px;}
   .seg button{
@@ -89,13 +90,18 @@
   input[type=range]{
     width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
   }
-  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:none;}
+  .steptag{position:absolute; left:14px; bottom:48px; z-index:6; font-size:12px; line-height:1.55;
+    color:var(--amber); background:rgba(16,20,24,.85); border:1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+    padding:6px 12px; border-radius:8px; pointer-events:none; max-width:68%;}
+  .steptag b{color:var(--amber);}
   .chip{
     appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
-    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    font-size:11.5px; padding:4px 8px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    white-space:normal; text-align:center; line-height:1.3; min-height:24px;
   }
   .chip:hover{color:var(--ink); border-color:#3d4a57;}
-  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .chip.on{background:var(--amber); border-color:var(--amber); color:#241a06; font-weight:600;}
   .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
   .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
   .stepbadge b{color:var(--amber); font-weight:600;}
@@ -132,6 +138,7 @@
     <div class="badge3d">WEBGL 3D · 教学示意模型</div>
     <canvas id="scene"></canvas>
     <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div id="stepTag" class="steptag" hidden></div>
     <div class="fallback" id="fallback" hidden>
       <h3>当前环境无法运行 3D 场景</h3>
       <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
@@ -160,7 +167,7 @@
     <span>工艺步骤 Process Steps</span>
     <div class="seg" id="stepSeg"></div>
   </div>
-  <div class="ctl" style="min-width:220px; max-width:560px;">
+  <div class="ctl chips-ctl">
     <span>部件导航 Parts</span>
     <div id="partChips"></div>
   </div>
@@ -175,10 +182,10 @@ const CONFIG = {
   titleZh: 'T 型衰减器', titleEn: 'T-Pad Attenuator (Z₀ Matched)',
   camPos: [4.6, 2.6, 5.4], target: [0, 0.5, 0],
   minDist: 2.0, maxDist: 12, maxPolar: Math.PI * 0.52,
-  initPart: 'r2',
-  hasModes: false, hasSteps: false, hasExplode: true,
-  statusText: '结构拆解',
-  panelMode: '结构拆解——拖动拆解滑块，观察透明外壳内三只电阻组成的 T 形网络与两端 BNC 的关系。'
+  initPart: 'r2', initMode: 'work',
+  hasModes: true, hasSteps: true, hasExplode: true,
+  statusText: '衰减工作 Attenuated',
+  panelMode: '衰减工作——输入端口信号强、输出端口信号弱；切到直通旁路对照，观察两端口亮度差消失。'
 };
 
 const PARTS = {
@@ -198,8 +205,17 @@ const PARTS = {
     desc:'并联臂 R₂ 的接地基准与安装法兰。T 型与 π 型在同一 Z₀、同一衰减量下电气等效、可互相替换，选哪种取决于电路板布局与元件取值方便；600Ω 音频系统只需把全部电阻按比例缩放。'}
 };
 
-const MODES = {};
-const STEPS = [];
+const MODES = {
+  work: {zh:'衰减工作', en:'Attenuated', desc:'正常衰减工作状态：输入端口信号强、输出端口信号明显偏弱，两端口都保持 Z₀ 匹配，波形形状不变。'},
+  bypass: {zh:'直通旁路', en:'Bypass', desc:'等效直通参考：衰减量为零的对照状态，输入与输出端口亮度相当——用于体会"衰减前后"信号强度的差别。'}
+};
+
+const STEPS = [
+  {name:'信号流入', part:'bncIn', text:'信号从输入 BNC 进入网络：端口发光环显示此刻信号最强的位置。'},
+  {name:'串联降压', part:'r1in', text:'信号先穿过输入侧串联臂 R₁：一部分压降落在串联电阻上，辉光晕标出它正在"耗能"。'},
+  {name:'中点分流', part:'r2', text:'在 T 型中点，剩余能量经并联臂 R₂ 分流到接地底板：这是信号被等比例"砍"下来的关键。'},
+  {name:'衰减输出', part:'bncOut', text:'衰减后的信号从输出 BNC 送出：发光环亮度明显弱于输入环，直观体现等比例衰减。'}
+];
 
 const EXPLODE_VEC = {
   shell:    [0, 0.9, 0],
@@ -210,6 +226,8 @@ const EXPLODE_VEC = {
   bncOut:   [1.25, 0, 0],
   ground:   [0, -0.3, -0.55]
 };
+
+let haloR1in, haloR2, inRing, outRing, outRingMat;
 
 function buildShell(M){
   const g = new THREE.Group();
@@ -230,6 +248,10 @@ function buildR1in(M){
   const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), M.chrome);
   wire.rotation.z = Math.PI/2; wire.position.set(-1.12, 0.55, 0);
   g.add(wire);
+  // "串联降压"步的辉光晕
+  haloR1in = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12),
+    new THREE.MeshBasicMaterial({color:0xf5c26b, transparent:true, opacity:0.45, depthWrite:false}));
+  haloR1in.position.set(-0.55, 0.55, 0); haloR1in.visible = false; g.add(haloR1in);
   return g;
 }
 
@@ -248,19 +270,32 @@ function buildR2(M){
   r.position.set(0, 0.32, 0); r.castShadow = true; g.add(r);
   const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2, 8), M.chrome);
   wire.position.set(0, 0.6, 0); g.add(wire);
+  // "中点分流"步的辉光晕
+  haloR2 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 12),
+    new THREE.MeshBasicMaterial({color:0xf5c26b, transparent:true, opacity:0.45, depthWrite:false}));
+  haloR2.position.set(0, 0.32, 0); haloR2.visible = false; g.add(haloR2);
   return g;
 }
 
-function bnc(M, x){
+function bnc(M, x, isInput){
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.34, 24), M.frame);
   body.rotation.z = Math.PI/2; body.position.set(x, 0.55, 0); body.castShadow = true; g.add(body);
   const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 16), M.chrome);
   tip.rotation.z = Math.PI/2; tip.position.set(x + (x<0 ? -0.22 : 0.22), 0.55, 0); g.add(tip);
+  // 端口发光环：输入环恒亮（信号入口），输出环亮度随模式变化（衰减工作=暗，直通=亮）
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 8, 24),
+    isInput
+      ? new THREE.MeshBasicMaterial({color:0x4ade80})
+      : (outRingMat = new THREE.MeshBasicMaterial({color:0x2f7a4d})));
+  ring.rotation.y = Math.PI/2;
+  ring.position.set(x + (x<0 ? -0.3 : 0.3), 0.55, 0);
+  ring.visible = false; g.add(ring);
+  if(isInput) inRing = ring; else outRing = ring;
   return g;
 }
-function buildBncIn(M){ return bnc(M, -1.45); }
-function buildBncOut(M){ return bnc(M, 1.45); }
+function buildBncIn(M){ return bnc(M, -1.45, true); }
+function buildBncOut(M){ return bnc(M, 1.45, false); }
 
 function buildGround(M){
   const g = new THREE.Group();
@@ -285,8 +320,30 @@ function buildAll(){
   });
 }
 
-function applyModeVisual(m){}
-function applyStepVisual(i){}
+function applyModeVisual(m){
+  // 衰减工作：输出环暗绿（信号被压小）；直通旁路：输出环亮绿（与输入相当）
+  if(outRingMat) outRingMat.color.setHex(m === 'bypass' ? 0x86efac : 0x2f7a4d);
+}
+
+// 每步专属机位：流入→输入 BNC 特写；串联→左 R₁；分流→中点 R₂ 接地；输出→整机全景
+const STEP_CAM = [
+  {pos:[-3.2, 1.5, 2.8], tgt:[-1.45, 0.55, 0]},
+  {pos:[-1.8, 1.6, 2.6], tgt:[-0.55, 0.55, 0]},
+  {pos:[0.2, 1.9, 2.6], tgt:[0, 0.35, 0]},
+  {pos:[4.6, 2.6, 5.4], tgt:[0, 0.5, 0]}
+];
+
+function applyStepVisual(i){
+  // 串联步：左 R₁ 辉光晕亮；分流步：R₂ 辉光晕亮
+  if(haloR1in) haloR1in.visible = (i === 1);
+  if(haloR2) haloR2.visible = (i === 2);
+  // 输入环：进任意步骤即亮（信号入口）；输出环：最后一步才亮（信号到达出口）
+  if(inRing) inRing.visible = (i >= 0);
+  if(outRing) outRing.visible = (i === 3);
+  const c = STEP_CAM[i];
+  if(c){ camera.position.set(...c.pos); controls.target.set(...c.tgt); }
+  controls.update();
+}
 function applyExplodeVisual(v){}
 function applyAnim(){}
 /* ================= 替换区 END ================= */
@@ -369,6 +426,76 @@ function addPart(group, id, explodeVec){
   scene.add(group);
 }
 
+
+const MAT_ORIG = new WeakMap();
+function saveMat(m){
+  if(!m || MAT_ORIG.has(m)) return;
+  MAT_ORIG.set(m, {
+    color: m.color ? m.color.getHex() : 0,
+    emissive: m.emissive ? m.emissive.getHex() : 0,
+    emissiveIntensity: m.emissiveIntensity,
+    opacity: m.opacity,
+    transparent: m.transparent
+  });
+}
+function restoreMat(m){
+  const o = MAT_ORIG.get(m);
+  if(!o) return;
+  if(m.color) m.color.setHex(o.color);
+  if(m.emissive) m.emissive.setHex(o.emissive);
+  if(m.emissiveIntensity !== undefined) m.emissiveIntensity = o.emissiveIntensity;
+  if(m.opacity !== undefined) m.opacity = o.opacity;
+  if(m.transparent !== undefined) m.transparent = o.transparent;
+}
+const SEL_COLOR = 0xffb84d;
+let selHelper = null;
+function clearPartFX(){
+  if(selHelper){ scene.remove(selHelper); selHelper = null; }
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) restoreMat(o.material); }));
+}
+function applyDim(id){
+  const target = groups[id];
+  Object.values(groups).forEach(g=>{
+    const isSel = g === target;
+    g.traverse(o=>{
+      if(!o.isMesh) return;
+      saveMat(o.material);
+      const m = o.material, o0 = MAT_ORIG.get(m);
+      if(isSel){
+        const glass = o0.transparent && o0.opacity !== undefined && o0.opacity < 0.85;
+        if(m.emissive){ m.emissive.setHex(SEL_COLOR); m.emissiveIntensity = glass ? 0.9 : 1.3; }
+        if(!glass && m.color){ m.color.setHex(o0.color).multiplyScalar(1.22); }
+        if(glass && m.opacity !== undefined){ m.opacity = Math.max(o0.opacity, 0.68); }
+      } else {
+        if(m.color){ m.color.setHex(o0.color).multiplyScalar(0.7); }
+        if(m.emissive){ m.emissive.setHex(0); m.emissiveIntensity = 0; }
+      }
+    });
+  });
+  if(target){
+    selHelper = new THREE.BoxHelper(target, SEL_COLOR);
+    scene.add(selHelper);
+  }
+}
+function hoverFX(mesh){
+  const m = mesh.material;
+  saveMat(m);
+  const o0 = MAT_ORIG.get(m);
+  if(m.color){ m.color.setHex(o0.color); }
+  if(m.emissive){ m.emissive.setHex(SEL_COLOR); m.emissiveIntensity = 0.32; }
+}
+function unhoverFX(mesh){
+  const m = mesh.material;
+  restoreMat(m);
+  if(selected && m.color && m.emissive){
+    const o0 = MAT_ORIG.get(m);
+    if(mesh.userData.partId !== selected && o0){
+      m.color.setHex(o0.color).multiplyScalar(0.7);
+      m.emissive.setHex(0); m.emissiveIntensity = 0;
+    }
+  }
+}
+
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let hovered = null;
@@ -391,13 +518,13 @@ function onMove(e){
   const hits = raycaster.intersectObjects(pickMeshes(), false);
   const id = hits.length ? hits[0].object.userData.partId : null;
   canvas.style.cursor = id ? 'pointer' : 'grab';
-  if(hovered && hovered !== selected){
-    hovered.material.emissiveIntensity = 0;
+  if(hovered && hovered !== selected && hovered.material){
+    unhoverFX(hovered);
     hovered = null;
   }
-  if(id && id !== selected){
+  if(id && id !== selected && hits[0].object.material){
     hovered = hits[0].object;
-    hovered.material.emissiveIntensity = 0.22;
+    hoverFX(hovered);
   }
 }
 
@@ -413,9 +540,8 @@ function onClick(e){
 function selectPart(id){
   if(!id || !PARTS[id]) return;
   selected = id;
-  Object.values(groups).forEach(g=>{
-    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
-  });
+  clearPartFX();
+  applyDim(id);
   if(hovered){ hovered = null; }
   const p = PARTS[id];
   document.getElementById('pTag').textContent = p.tag;
@@ -510,10 +636,11 @@ function applyExplodeVisual(v){}
 function runStep(i){
   step = i;
   document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
-  if(i<0){ selectPart(null); return; }
+  if(i<0){ selectPart(null); var _st0=document.getElementById('stepTag'); if(_st0) _st0.hidden=true; return; }
   const s = STEPS[i];
   applyStepVisual(i);
   selectPart(s.part);
+  var _st=document.getElementById('stepTag'); if(_st){ _st.hidden=false; _st.innerHTML='<b>'+s.name+'</b> — '+s.text; }
   controls.update();
   updatePanelMode();
 }
@@ -521,6 +648,7 @@ function runStep(i){
 function animate(){
   rafId = requestAnimationFrame(animate);
   controls.update();
+  if(selHelper) selHelper.update();
   applyAnim();
   renderer.render(scene, camera);
 }

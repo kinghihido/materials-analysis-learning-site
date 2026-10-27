@@ -72,10 +72,11 @@
   #pMode b{color:var(--amber); font-weight:600;}
   #controls{
     flex:0 0 auto; background:var(--bg2); border-top:1px solid var(--line);
-    display:flex; gap:22px; align-items:center; padding:10px 18px; overflow-x:auto;
-    min-height:var(--ctl-h);
+    display:flex; flex-wrap:wrap; gap:10px 22px; align-items:flex-start; padding:10px 18px;
+    overflow-y:auto; max-height:36vh; min-height:var(--ctl-h);
   }
-  .ctl{display:flex; flex-direction:column; gap:6px; flex:0 0 auto;}
+  .ctl{display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-width:190px;}
+  .chips-ctl{flex:1 1 100%; min-width:0; max-width:none;}
   .ctl>span{font-size:11px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase;}
   .seg{display:flex; gap:6px;}
   .seg button{
@@ -89,13 +90,18 @@
   input[type=range]{
     width:150px; accent-color:var(--violet); height:22px; cursor:pointer;
   }
-  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  #partChips{display:flex; flex-wrap:wrap; gap:6px; max-width:none;}
+  .steptag{position:absolute; left:14px; bottom:48px; z-index:6; font-size:12px; line-height:1.55;
+    color:var(--amber); background:rgba(16,20,24,.85); border:1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+    padding:6px 12px; border-radius:8px; pointer-events:none; max-width:68%;}
+  .steptag b{color:var(--amber);}
   .chip{
     appearance:none; border:1px solid var(--line); background:var(--bg3); color:var(--ink-dim);
-    font-size:11.5px; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    font-size:11.5px; padding:4px 8px; border-radius:999px; cursor:pointer; transition:all .16s ease;
+    white-space:normal; text-align:center; line-height:1.3; min-height:24px;
   }
   .chip:hover{color:var(--ink); border-color:#3d4a57;}
-  .chip.on{background:var(--blue); border-color:var(--blue); color:#0d1830; font-weight:600;}
+  .chip.on{background:var(--amber); border-color:var(--amber); color:#241a06; font-weight:600;}
   .stepbadge{font-size:12px; color:var(--ink-dim); white-space:nowrap;}
   .stepbadge i{font-style:normal; color:var(--ink-faint); margin-right:6px;}
   .stepbadge b{color:var(--amber); font-weight:600;}
@@ -132,6 +138,7 @@
     <div class="badge3d">WEBGL 3D · 教学示意模型</div>
     <canvas id="scene"></canvas>
     <div class="hint">拖动旋转 · 滚轮缩放 · 点击部件查看构造</div>
+    <div id="stepTag" class="steptag" hidden></div>
     <div class="fallback" id="fallback" hidden>
       <h3>当前环境无法运行 3D 场景</h3>
       <p>页面需要 WebGL 与 Three.js 支持。你可以换用支持 WebGL 的浏览器（Chrome / Edge / Firefox）打开本文件；页面文字说明仍然可用。</p>
@@ -160,7 +167,7 @@
     <span>测量步骤 Measure Steps</span>
     <div class="seg" id="stepSeg"></div>
   </div>
-  <div class="ctl" style="min-width:220px; max-width:560px;">
+  <div class="ctl chips-ctl">
     <span>部件导航 Parts</span>
     <div id="partChips"></div>
   </div>
@@ -390,6 +397,13 @@ function buildAll(){
 
 const MODE_DIAL_ANG = { voltage: 0, current: 0.6, resistance: 1.2, wire4: 1.8 };
 const MODE_LCD_COLOR = { voltage: 0x2f7fd1, current: 0xc98a2f, resistance: 0x2f9e5f, wire4: 0x8b7cf0 };
+// 表笔接线随模式变化：电压=并联搭 DUT 两端，电流=红笔改插电流孔（串联），电阻=笔尖伸向 DUT，四线=force/sense 两对
+const LEAD_POS = {
+  voltage:    {a:[1.25, 0.28, 0.35],  b:[-0.35, 0.28, 0.35]},
+  current:    {a:[0.95, 0.28, 0.45],  b:[-0.35, 0.28, 0.35]},
+  resistance: {a:[1.25, 0.28, -0.15], b:[-0.35, 0.28, -0.15]},
+  wire4:      {a:[1.25, 0.28, -0.35], b:[-0.35, 0.28, -0.35]}
+};
 
 function applyModeVisual(m){
   if(dialGrp) dialGrp.rotation.y = MODE_DIAL_ANG[m] || 0;
@@ -398,32 +412,32 @@ function applyModeVisual(m){
     lcdGlow.material.emissive.setHex(MODE_LCD_COLOR[m] || 0x2f7fd1);
     lcdGlow.material.emissiveIntensity = step === 3 ? 1.4 : 0.55;
   }
+  // 表笔接线随模式切换（静态可读：不靠动画也能看出测量方式）
+  if(leadA && leadB){
+    const L = LEAD_POS[m] || LEAD_POS.voltage;
+    leadA.position.set(...L.a); leadB.position.set(...L.b);
+  }
   // 四线：显示两根 sense 表笔并改接到被测器件
   if(leadSA && leadSB){
     const on = (m === 'wire4');
     leadSA.visible = on; leadSB.visible = on;
-    if(on){
-      leadA.position.set(1.25, 0.28, -0.35); leadSA.position.set(1.5, 0.55, 0.35);
-      leadB.position.set(-0.35, 0.28, -0.35); leadSB.position.set(-0.15, 0.55, 0.35);
-    } else {
-      leadA.position.set(1.25, 0.28, 0.35); leadSA.position.set(1.5, 0.28, -0.35);
-      leadB.position.set(-0.35, 0.28, 0.35); leadSB.position.set(-0.15, 0.28, -0.35);
-    }
+    leadSA.position.set(1.5, 0.55, 0.35);
+    leadSB.position.set(-0.15, 0.55, 0.35);
   }
 }
 
 function applyStepVisual(i){
   if(lcdGlow) lcdGlow.material.emissiveIntensity = (i === 3) ? 1.5 : 0.55;
-  if(i === 2){
-    camera.position.set(2.6, 1.9, 3.2);
-    controls.target.set(0, 0.55, -0.2);
-  } else if(i === 3){
-    camera.position.set(3.4, 2.4, 4.0);
-    controls.target.set(0, 1.7, 0);
-  } else {
-    camera.position.set(...CONFIG.camPos);
-    controls.target.set(...CONFIG.target);
-  }
+  // 每步明确相机机位（不依赖动画也可读）
+  const cams = {
+    0: {p:[4.6, 3.0, 5.6], t:[0, 1.35, 0]},
+    1: {p:[3.7, 2.1, 4.5], t:[0.4, 0.6, 0.3]},
+    2: {p:[2.6, 1.9, 3.2], t:[0, 0.55, -0.2]},
+    3: {p:[3.4, 2.4, 4.0], t:[0, 1.7, 0]}
+  };
+  const c = cams[i] || {p:[...CONFIG.camPos], t:[...CONFIG.target]};
+  camera.position.set(...c.p);
+  controls.target.set(...c.t);
   controls.update();
 }
 
@@ -515,6 +529,76 @@ function addPart(group, id, explodeVec){
   scene.add(group);
 }
 
+
+const MAT_ORIG = new WeakMap();
+function saveMat(m){
+  if(!m || MAT_ORIG.has(m)) return;
+  MAT_ORIG.set(m, {
+    color: m.color ? m.color.getHex() : 0,
+    emissive: m.emissive ? m.emissive.getHex() : 0,
+    emissiveIntensity: m.emissiveIntensity,
+    opacity: m.opacity,
+    transparent: m.transparent
+  });
+}
+function restoreMat(m){
+  const o = MAT_ORIG.get(m);
+  if(!o) return;
+  if(m.color) m.color.setHex(o.color);
+  if(m.emissive) m.emissive.setHex(o.emissive);
+  if(m.emissiveIntensity !== undefined) m.emissiveIntensity = o.emissiveIntensity;
+  if(m.opacity !== undefined) m.opacity = o.opacity;
+  if(m.transparent !== undefined) m.transparent = o.transparent;
+}
+const SEL_COLOR = 0xffb84d;
+let selHelper = null;
+function clearPartFX(){
+  if(selHelper){ scene.remove(selHelper); selHelper = null; }
+  Object.values(groups).forEach(g=>g.traverse(o=>{ if(o.isMesh) restoreMat(o.material); }));
+}
+function applyDim(id){
+  const target = groups[id];
+  Object.values(groups).forEach(g=>{
+    const isSel = g === target;
+    g.traverse(o=>{
+      if(!o.isMesh) return;
+      saveMat(o.material);
+      const m = o.material, o0 = MAT_ORIG.get(m);
+      if(isSel){
+        const glass = o0.transparent && o0.opacity !== undefined && o0.opacity < 0.85;
+        if(m.emissive){ m.emissive.setHex(SEL_COLOR); m.emissiveIntensity = glass ? 0.9 : 1.3; }
+        if(!glass && m.color){ m.color.setHex(o0.color).multiplyScalar(1.22); }
+        if(glass && m.opacity !== undefined){ m.opacity = Math.max(o0.opacity, 0.68); }
+      } else {
+        if(m.color){ m.color.setHex(o0.color).multiplyScalar(0.7); }
+        if(m.emissive){ m.emissive.setHex(0); m.emissiveIntensity = 0; }
+      }
+    });
+  });
+  if(target){
+    selHelper = new THREE.BoxHelper(target, SEL_COLOR);
+    scene.add(selHelper);
+  }
+}
+function hoverFX(mesh){
+  const m = mesh.material;
+  saveMat(m);
+  const o0 = MAT_ORIG.get(m);
+  if(m.color){ m.color.setHex(o0.color); }
+  if(m.emissive){ m.emissive.setHex(SEL_COLOR); m.emissiveIntensity = 0.32; }
+}
+function unhoverFX(mesh){
+  const m = mesh.material;
+  restoreMat(m);
+  if(selected && m.color && m.emissive){
+    const o0 = MAT_ORIG.get(m);
+    if(mesh.userData.partId !== selected && o0){
+      m.color.setHex(o0.color).multiplyScalar(0.7);
+      m.emissive.setHex(0); m.emissiveIntensity = 0;
+    }
+  }
+}
+
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let hovered = null;
@@ -537,13 +621,13 @@ function onMove(e){
   const hits = raycaster.intersectObjects(pickMeshes(), false);
   const id = hits.length ? hits[0].object.userData.partId : null;
   canvas.style.cursor = id ? 'pointer' : 'grab';
-  if(hovered && hovered !== selected){
-    hovered.material.emissiveIntensity = 0;
+  if(hovered && hovered !== selected && hovered.material){
+    unhoverFX(hovered);
     hovered = null;
   }
-  if(id && id !== selected){
+  if(id && id !== selected && hits[0].object.material){
     hovered = hits[0].object;
-    hovered.material.emissiveIntensity = 0.22;
+    hoverFX(hovered);
   }
 }
 
@@ -559,9 +643,8 @@ function onClick(e){
 function selectPart(id){
   if(!id || !PARTS[id]) return;
   selected = id;
-  Object.values(groups).forEach(g=>{
-    g.traverse(o=>{ if(o.isMesh) o.material.emissiveIntensity = (o.userData.partId===id ? 0.28 : 0); });
-  });
+  clearPartFX();
+  applyDim(id);
   if(hovered){ hovered = null; }
   const p = PARTS[id];
   document.getElementById('pTag').textContent = p.tag;
@@ -656,10 +739,11 @@ function applyExplodeVisual(v){}
 function runStep(i){
   step = i;
   document.querySelectorAll('#stepSeg button').forEach((b,j)=>b.classList.toggle('on', j===i));
-  if(i<0){ selectPart(null); return; }
+  if(i<0){ selectPart(null); var _st0=document.getElementById('stepTag'); if(_st0) _st0.hidden=true; return; }
   const s = STEPS[i];
   applyStepVisual(i);
   selectPart(s.part);
+  var _st=document.getElementById('stepTag'); if(_st){ _st.hidden=false; _st.innerHTML='<b>'+s.name+'</b> — '+s.text; }
   controls.update();
   updatePanelMode();
 }
@@ -667,6 +751,7 @@ function runStep(i){
 function animate(){
   rafId = requestAnimationFrame(animate);
   controls.update();
+  if(selHelper) selHelper.update();
   applyAnim();
   renderer.render(scene, camera);
 }
