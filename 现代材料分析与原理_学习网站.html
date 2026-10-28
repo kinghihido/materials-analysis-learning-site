@@ -2789,7 +2789,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
     var isMobile = window.matchMedia("(max-width: 640px)").matches;
     var minH = isMobile ? 320 : 400;
     var maxH = isMobile ? 620 : 980;
-    var h = window.innerHeight - r.top - 18;
+    var h = window.innerHeight - r.top - 50;
     if (h < minH) h = minH;
     if (h > maxH) h = maxH;
     frame.style.height = Math.round(h) + "px";
