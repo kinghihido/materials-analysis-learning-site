@@ -145,7 +145,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
 /* ===== 文章视图 ===== */
 #view-article{height:calc(100dvh - var(--topbar-h)); display:none; flex-direction:column; background:var(--bg);}
 #view-article.show{display:flex;}
-.art-top{flex:0 0 auto; border-bottom:1px solid var(--line); background:var(--bg2); padding:14px 22px 12px;}
+.art-top{flex:0 0 auto; border-bottom:1px solid var(--line); background:var(--bg2); padding:14px 22px 12px; transition:max-height .3s ease, opacity .25s ease, padding .3s ease, border-width .3s ease; overflow:hidden; max-height:200px;}
 .art-top-row{display:flex; align-items:center; gap:14px; max-width:1280px; margin:0 auto;}
 .back{
   appearance:none; flex:0 0 auto; display:inline-flex; align-items:center; gap:6px;
@@ -181,7 +181,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
 }
 .collapse-btn:hover{color:var(--ink); border-color:var(--line2);}
 .collapse-btn.on{background:var(--violet); border-color:var(--violet); color:#14121f; font-weight:600;}
-#view-article.collapsed .art-top{display:none;}
+#view-article.collapsed .art-top{max-height:0; opacity:0; padding-top:0; padding-bottom:0; border-bottom-width:0;}
 
 #articleHost{flex:1 1 auto; min-height:0; position:relative;}
 .article{height:100%; display:none; flex-direction:column;}
@@ -281,6 +281,15 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
 .pager-title b{color:var(--gcol, var(--violet)); font-family:var(--mono); font-weight:700;}
 .pager-count{flex:0 0 auto; font-family:var(--mono); font-size:13px; color:var(--ink-faint); white-space:nowrap;}
 .pager-count b{color:var(--ink); font-size:16px;}
+.pager-jump{
+  flex:0 0 auto; width:52px; height:30px; text-align:center;
+  font-family:var(--mono); font-size:12px; color:var(--ink);
+  background:var(--bg3); border:1px solid var(--line); border-radius:7px;
+  outline:none; transition:border-color .18s ease;
+  -moz-appearance:textfield;
+}
+.pager-jump::-webkit-outer-spin-button, .pager-jump::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.pager-jump:focus{border-color:var(--gcol, var(--violet));}
 .pager-strip{display:flex; gap:5px; overflow-x:auto; max-width:1400px; margin:0 auto; width:100%; padding-bottom:3px; scrollbar-width:thin;}
 .chip{
   appearance:none; flex:0 0 auto; min-width:32px; height:30px; padding:0 8px;
@@ -341,6 +350,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
   .page-text{overflow:visible;}
   .pager{padding:9px 12px 10px;}
   .pager-title{font-size:12.5px;}
+  .pager-jump{width:44px; height:28px; font-size:11px;}
   .pager-strip{flex-wrap:nowrap;}
 }
 @media (prefers-reduced-motion: reduce){
@@ -465,7 +475,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
         <button type="button" data-tab="glossary">速查表</button>
         <button type="button" data-tab="lab">3D 仪器</button>
       </nav>
-      <button type="button" class="collapse-btn" id="collapseArt" title="收起/展开上方标题信息，给 3D 场景更多空间">收起头部 ▲</button>
+      <button type="button" class="collapse-btn" id="collapseArt" title="收起/展开上方标题信息，给内容更多空间">收起头部 ▲</button>
     </div>
     <div id="articleHost">
       <section class='article' id='art-photolithography' data-slug='photolithography' data-group='photo' data-cn='光刻' data-en='Photolithography' data-pdf='Lecture Photolithography.pdf' data-pages='19' data-chars='12320' data-ov='0'>
@@ -2462,6 +2472,7 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
         </button>
         <div class="pager-title" id="pagerTitle"></div>
         <div class="pager-count" id="pagerCount"></div>
+        <input class="pager-jump" id="pagerJump" type="number" min="1" aria-label="跳转到页码" title="输入页码按回车跳转">
         <button class="pg-btn" type="button" id="nextPg" aria-label="下一页">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
@@ -2646,14 +2657,11 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
     if (tab === "lab"){ lazyLabs(sec); }
     syncCollapse();
   }
-  /* ---------- 收起头部（给 3D 更多空间） ---------- */
+  /* ---------- 收起头部（给内容更多空间） ---------- */
   function syncCollapse(){
-    var want = false;
-    if (state.tab === "lab"){
-      var saved = null;
-      try { saved = localStorage.getItem("labCollapse"); } catch(err){}
-      if (saved === "1") want = true;
-    }
+    var saved = null;
+    try { saved = localStorage.getItem("artCollapse"); } catch(err){}
+    var want = saved === "1";
     artView.classList.toggle("collapsed", want);
     var btn = $("collapseArt");
     btn.classList.toggle("on", want);
@@ -2663,16 +2671,15 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
     }
   }
   $("collapseArt").addEventListener("click", function(){
-    if (state.tab !== "lab"){
-      var sec = currentSection();
-      location.hash = "#/art/" + state.slug + "/lab";
-      switchTab(sec, "lab");
-    }
     var next = !artView.classList.contains("collapsed");
     artView.classList.toggle("collapsed", next);
-    try { localStorage.setItem("labCollapse", next ? "1" : "0"); } catch(err){}
-    syncCollapse();
-    try { fitLabFrame(currentSection()); } catch(err){}
+    try { localStorage.setItem("artCollapse", next ? "1" : "0"); } catch(err){}
+    var btn = $("collapseArt");
+    btn.classList.toggle("on", next);
+    btn.innerHTML = next ? '展开头部 ▼' : '收起头部 ▲';
+    if (state.tab === "lab"){
+      try { fitLabFrame(currentSection()); } catch(err){}
+    }
   });
   for (var tbi=0;tbi<tabBtns.length;tbi++){
     (function(btn){
@@ -2722,6 +2729,8 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
     $("progressBar").style.width = (n / pages * 100) + "%";
     $("prevPg").disabled = n <= 1;
     $("nextPg").disabled = n >= pages;
+    jumpInput.max = pages;
+    jumpInput.placeholder = "1-" + pages;
     var chips = $("pageStrip").querySelectorAll(".chip");
     for (var c=0;c<chips.length;c++){ chips[c].classList.toggle("on", num(chips[c].textContent) === n); }
     var active = $("pageStrip").querySelector(".chip.on");
@@ -2733,6 +2742,24 @@ body.ready .d1{animation-delay:.05s;} body.ready .d2{animation-delay:.16s;} body
   }
   $("prevPg").addEventListener("click", function(){ showPage(currentSection(), state.page - 1, true); });
   $("nextPg").addEventListener("click", function(){ showPage(currentSection(), state.page + 1, true); });
+
+  /* ---------- 页码跳转 ---------- */
+  var jumpInput = $("pagerJump");
+  jumpInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){
+      e.preventDefault();
+      var n = parseInt(jumpInput.value, 10);
+      if (n && n >= 1){
+        var sec = currentSection();
+        var max = num(sec.getAttribute("data-pages"));
+        if (n > max) n = max;
+        location.hash = "#/art/" + state.slug + "/" + n;
+        showPage(sec, n, true);
+        jumpInput.value = "";
+        jumpInput.blur();
+      }
+    }
+  });
 
   /* ---------- 上一篇 / 下一篇 ---------- */
   function neighbor(delta){
